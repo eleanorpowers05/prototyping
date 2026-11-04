@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--APP-START-->
+<title>ECON 11020 Flashcards</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one centered study column — sticky control bar, a single large card, actions pinned under it. */
+:root {
+  --bg: #eef0f4;
+  --surface: #ffffff;
+  --ink: #1a1c23;
+  --muted: #5a5f6e;
+  --line: #d6d9e2;
+  --accent: #800000;          /* UChicago maroon */
+  --accent-ink: #ffffff;
+  --accent-soft: #f4e4e4;
+  --good: #1d7448;
+  --good-soft: #def1e6;
+  --bad: #b3301d;
+  --bad-soft: #fbe4de;
+  --t-math: #2b55a3;
+  --t-probability: #6b3c9e;
+  --t-economic: #1b7466;
+  --t-traps: #b3301d;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --scale: 1;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131419; --surface: #1d1f27; --ink: #eceef4; --muted: #a3a8b7; --line: #30333e;
+    --accent: #e27a83; --accent-ink: #1a0b0d; --accent-soft: #3b2024;
+    --good: #62c995; --good-soft: #17342a; --bad: #f08a75; --bad-soft: #3d201a;
+    --t-math: #8fb0f0; --t-probability: #c2a2ec; --t-economic: #6fd0bf; --t-traps: #f08a75;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131419; --surface: #1d1f27; --ink: #eceef4; --muted: #a3a8b7; --line: #30333e;
+  --accent: #e27a83; --accent-ink: #1a0b0d; --accent-soft: #3b2024;
+  --good: #62c995; --good-soft: #17342a; --bad: #f08a75; --bad-soft: #3d201a;
+  --t-math: #8fb0f0; --t-probability: #c2a2ec; --t-economic: #6fd0bf; --t-traps: #f08a75;
+  color-scheme: dark;
+}
+
+html { font-size: calc(17px * var(--scale)); }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 1rem; line-height: 1.5;
+  margin: 0;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+* { box-sizing: border-box; }
+button, select, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 760px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* Top bar */
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+.bar .wrap { padding-block: 10px; display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.brand { display: flex; align-items: baseline; gap: 10px; flex: 1 1 auto; min-width: 0; }
+.brand h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; letter-spacing: -0.01em; margin: 0; }
+.brand .sub { color: var(--muted); font-size: 0.82rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--bg); }
+.seg button { border: 0; background: transparent; padding: 6px 14px; border-radius: 999px; font-weight: 700; font-size: 0.9rem; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
+.fontsz { display: inline-flex; gap: 2px; }
+.fontsz button { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; min-width: 2.2rem; height: 2.2rem; font-weight: 700; }
+.fontsz button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
+details.filters { border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+details.filters summary { padding: 8px 12px; cursor: pointer; font-weight: 700; font-size: 0.9rem; list-style: none; display: flex; justify-content: space-between; gap: 8px; }
+details.filters summary::-webkit-details-marker { display: none; }
+details.filters summary .sum { color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.fbody { padding: 4px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.flabel { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 0.88rem; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.chip:disabled { opacity: 0.4; cursor: not-allowed; }
+.chip.lec { font-family: var(--font-mono); font-size: 0.8rem; min-width: 2.6rem; }
+.chip .dot { display: inline-block; width: 0.55em; height: 0.55em; border-radius: 50%; margin-right: 6px; vertical-align: 0.05em; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+.toggle input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.linkbtn { border: 0; background: none; color: var(--accent); text-decoration: underline; padding: 0; font-size: 0.88rem; }
+
+/* Main */
+main .wrap { padding-block: 18px 40px; display: flex; flex-direction: column; gap: 14px; }
+.status { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.88rem; color: var(--muted); }
+.status b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.progress { height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.progress > i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .25s; }
+
+.card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: 0 1px 0 var(--line), 0 10px 30px -18px rgba(0,0,0,.35);
+  padding: 22px 22px 20px; min-height: 16rem; display: flex; flex-direction: column; gap: 14px;
+  min-width: 0;
+}
+.card.flipcard { cursor: pointer; }
+.meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.78rem; }
+.lecbadge { font-family: var(--font-mono); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; }
+.tag { font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.72rem; }
+.tag.math { color: var(--t-math); } .tag.probability { color: var(--t-probability); }
+.tag.economic { color: var(--t-economic); } .tag.traps { color: var(--t-traps); }
+.flag { margin-left: auto; color: var(--accent); font-weight: 700; font-size: 0.75rem; }
+.side { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); font-weight: 700; }
+.front { font-family: var(--font-display); font-weight: 600; font-size: 1.55rem; line-height: 1.25; letter-spacing: -0.01em; text-wrap: balance; margin: 0; }
+.back { font-size: 1.25rem; font-weight: 700; line-height: 1.4; margin: 0; }
+.why { color: var(--muted); font-size: 1rem; margin: 0; padding-top: 12px; border-top: 1px dashed var(--line); }
+.hint { margin-top: auto; color: var(--muted); font-size: 0.85rem; }
+.fade { animation: fade .22s ease; }
+@keyframes fade { from { opacity: .3; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fade { animation: none; } .progress > i { transition: none; } }
+
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 14px 12px; font-weight: 700; font-size: 1.05rem; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.good { background: var(--good-soft); color: var(--good); border-color: var(--good); }
+.btn.bad { background: var(--bad-soft); color: var(--bad); border-color: var(--bad); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.subactions { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 0.88rem; }
+.ghost { border: 0; background: none; color: var(--muted); padding: 6px 2px; }
+.ghost:hover { color: var(--ink); }
+kbd { font-family: var(--font-mono); font-size: 0.75em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+
+/* Quiz */
+.qprompt { font-family: var(--font-display); font-weight: 600; font-size: 1.3rem; line-height: 1.3; margin: 0; text-wrap: balance; }
+.qnote { color: var(--muted); font-size: 0.85rem; margin: -6px 0 0; }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; cursor: pointer; background: var(--surface); }
+.opt input { width: 1.2rem; height: 1.2rem; margin-top: 0.15rem; accent-color: var(--accent); flex: none; }
+.opt span { min-width: 0; }
+.opt.sel { border-color: var(--accent); background: var(--accent-soft); }
+.opt.r-hit { border-color: var(--good); background: var(--good-soft); }
+.opt.r-miss { border-color: var(--good); border-style: dashed; }
+.opt.r-wrong { border-color: var(--bad); background: var(--bad-soft); }
+.opt .mark { margin-left: auto; font-weight: 700; font-size: 0.8rem; white-space: nowrap; padding-left: 8px; }
+.r-hit .mark { color: var(--good); } .r-miss .mark { color: var(--good); } .r-wrong .mark { color: var(--bad); }
+.score { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.score .big { font-family: var(--font-display); font-weight: 800; font-size: 2rem; font-variant-numeric: tabular-nums; }
+.score .math { font-family: var(--font-mono); font-size: 0.82rem; color: var(--muted); }
+.match { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px 12px; align-items: center; }
+.match select { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: var(--surface); max-width: 46vw; }
+.match .ok { color: var(--good); font-weight: 700; } .match .no { color: var(--bad); font-weight: 700; }
+.match .cell { min-width: 0; }
+
+.done { text-align: left; }
+.done h2 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; margin: 0; }
+.empty { color: var(--muted); }
+.foot { color: var(--muted); font-size: 0.8rem; text-align: center; }
+
+@media (max-width: 520px) {
+  .bar { position: static; }
+  .front { font-size: 1.35rem; }
+  .card { padding: 18px 16px; }
+  .brand .sub { display: none; }
+  .match { grid-template-columns: 1fr; }
+  .match select { max-width: 100%; width: 100%; }
+}
+</style>
+<!--HEAD-END-->
+</head>
+<body>
+<!--BODY-START-->
+<header class="bar">
+  <div class="wrap">
+    <div class="row">
+      <div class="brand"><h1>ECON 11020</h1><span class="sub">Intro to Econometrics · Kyung · Autumn 2026</span></div>
+      <div class="seg" role="group" aria-label="Mode">
+        <button id="m-cards" aria-pressed="true">Cards</button>
+        <button id="m-quiz" aria-pressed="false">Quiz</button>
+      </div>
+      <div class="fontsz" role="group" aria-label="Text size">
+        <button data-scale="0.9" aria-label="Smaller text">A−</button>
+        <button data-scale="1" aria-label="Normal text">A</button>
+        <button data-scale="1.18" aria-label="Larger text">A+</button>
+      </div>
+    </div>
+    <div class="seg" role="group" aria-label="Deck" id="decks">
+      <button data-deck="all" aria-pressed="true">All</button>
+      <button data-deck="missed" aria-pressed="false">Missed pile <span id="missedCount"></span></button>
+      <button data-deck="weak" aria-pressed="false">Weak spots</button>
+    </div>
+    <details class="filters" id="filters">
+      <summary><span>Filters</span><span class="sum" id="filterSum"></span></summary>
+      <div class="fbody">
+        <div>
+          <div class="flabel">Lecture</div>
+          <div class="chips" id="lecChips"></div>
+          <div class="row" style="margin-top:6px"><button class="linkbtn" id="lecMid">Midterm (1–10)</button><button class="linkbtn" id="lecAll">All lectures</button></div>
+        </div>
+        <div>
+          <div class="flabel">Topic</div>
+          <div class="chips" id="tagChips"></div>
+        </div>
+        <div class="row">
+          <label class="toggle"><input type="checkbox" id="interleave" checked> Interleave topics</label>
+        </div>
+      </div>
+    </details>
+  </div>
+</header>
+
+<main>
+  <div class="wrap" id="view"></div>
+  <div class="wrap"><p class="foot">Progress is saved in this browser only. Keys: <kbd>Space</kbd> flip · <kbd>1</kbd> got it · <kbd>2</kbd> missed it · <kbd>→</kbd> skip</p></div>
+</main>
+
+<script>
+/* =====================================================================
+   CARD DATA. Add Lectures 11–15 by appending to CARDS and QUIZ.
+   lec: lecture number · tag: "math" | "probability" | "economic" | "traps"
+   weak: true → part of Ellie's practice-midterm weak spots (seeds the missed pile)
+   ===================================================================== */
+const CARDS = [
+  // L1
+  { id:"c1-1", lec:1, tag:"math", front:"Hat vs. no hat: what's the difference between β̂ and β?", back:"β̂ is an estimate from the sample. It's random and changes from sample to sample. β is the truth: fixed and unknown.", why:"Any statement saying β “varies across samples” or “has a distribution” is false. Only β̂ does." },
+  { id:"c1-2", lec:1, tag:"math", front:"Error vs. residual?", back:"Error: distance to the TRUE line (unobservable). Residual: distance to the FITTED line (computable).", why:"u = y − (α + βx) uses the unknown truth; û = y − (α̂ + β̂x) uses the estimates." },
+  { id:"c1-3", lec:1, tag:"economic", front:"Does a regression coefficient show causation?", back:"No. On its own it shows association.", why:"A causal reading needs a design that rules out confounders, e.g. an RCT or RDD." },
+  { id:"c1-4", lec:1, tag:"economic", front:"What is the causal effect for one unit, and why can't we see it?", back:"y₁ − y₀ (outcome with treatment minus without). We only ever observe one of the two.", why:"This is the fundamental problem of causal inference. RCTs and RDDs build comparison groups that stand in for the missing outcome." },
+  // L2
+  { id:"c2-1", lec:2, tag:"math", front:"What does OLS minimize?", back:"The sum of squared residuals.", why:"Σ(yᵢ − α̂ − β̂xᵢ)² is as small as possible." },
+  { id:"c2-2", lec:2, tag:"math", weak:true, front:"OLS residuals always… (name BOTH properties)", back:"1) Sum to 0. 2) Have zero covariance with x.", why:"Pair rule: remember both. The trap is “zero covariance with y.” That's false, because residuals are part of y." },
+  { id:"c2-3", lec:2, tag:"math", front:"Formula for the OLS slope in simple regression?", back:"β̂ = cov(x, y) / var(x)", why:"So β̂ has the same sign as the correlation between x and y and is proportional to it." },
+  { id:"c2-4", lec:2, tag:"math", front:"Which point does the OLS line always pass through?", back:"(x̄, ȳ), the point of means.", why:"That follows from the residuals summing to 0: α̂ = ȳ − β̂x̄." },
+  { id:"c2-5", lec:2, tag:"math", front:"What if x doesn't vary in the sample?", back:"The estimates aren't unique. var(x) = 0, so the slope can't be computed.", why:"This is also a perfect multicollinearity case (constant x alongside the intercept)." },
+  { id:"c2-6", lec:2, tag:"math", front:"Multiply y by c (e.g. dollars → cents, c = 100). What happens?", back:"Slope AND intercept both get multiplied by c.", why:"Everything on the right side has to scale up to match y." },
+  { id:"c2-7", lec:2, tag:"math", front:"x goes from minutes to hours. Slope? Intercept?", back:"Slope ×60. Intercept unchanged.", why:"Each hour is 60 minutes, so a one-unit change in x is now 60× bigger. Scaling x moves the slope the opposite way (x ÷ 60 → slope × 60)." },
+  { id:"c2-8", lec:2, tag:"traps", front:"Does rescaling x or y change t-stats or p-values?", back:"No. Significance is unchanged.", why:"The coefficient and its SE scale by the same factor, so t = β̂/se stays the same. R² is unchanged too." },
+  // L3
+  { id:"c3-1", lec:3, tag:"math", front:"In multiple regression, what does β̂ₖ measure?", back:"The association of xₖ with y, holding the other x's fixed.", why:"It's a partial effect. It uses only the variation in xₖ not explained by the other regressors." },
+  { id:"c3-2", lec:3, tag:"math", front:"k regressors → how many parameters?", back:"k + 1 (the slopes plus the intercept).", why:"y = β₀ + β₁x₁ + … + βₖxₖ + u" },
+  { id:"c3-3", lec:3, tag:"economic", front:"Where do omitted variables go?", back:"Into the error term.", why:"If the omitted variable is correlated with x, the error is correlated with x, and that's OVB." },
+  { id:"c3-4", lec:3, tag:"math", front:"What happens when n = k + 1?", back:"A perfect fit (R² = 1) that tells you nothing.", why:"With as many parameters as data points, the line hits every point. There's nothing left to estimate noise from." },
+  // L4
+  { id:"c4-1", lec:4, tag:"math", front:"Define R². What range?", back:"R² = 1 − SSR/TSS, between 0 and 1. The share of the variation in y explained by the model.", why:"It measures fit and prediction accuracy. Nothing more." },
+  { id:"c4-2", lec:4, tag:"math", front:"Add an x to the regression → R²?", back:"R² never falls. Adjusted R² can rise or fall.", why:"Adjusted R² penalizes extra regressors." },
+  { id:"c4-3", lec:4, tag:"traps", front:"What does a high R² tell you?", back:"A large share of the variation in y is explained, and the slopes aren't all 0. NOT significance of any one coefficient, causation, or the absence of OVB.", why:"Trap answer: “high R² → significant / causal / no OVB.” Always false." },
+  { id:"c4-4", lec:4, tag:"math", front:"Overfitting does what to predictions?", back:"Better fit in the sample, worse out-of-sample predictions.", why:"Extra regressors fit noise that won't repeat in new data." },
+  { id:"c4-5", lec:4, tag:"math", weak:true, front:"y = α + βd (d is a 0/1 dummy). What are α and β?", back:"α = mean of y when d = 0 (the baseline). β = mean(d=1) − mean(d=0).", why:"Dummy rule: intercept = baseline mean, coefficient = DIFFERENCE. The d = 1 group mean is α + β, not β." },
+  { id:"c4-6", lec:4, tag:"math", front:"log(y) = α + βx. Interpret β.", back:"One more unit of x → about 100·β % change in y.", why:"Example: β = 0.08 → about 8% higher y per unit of x." },
+  { id:"c4-7", lec:4, tag:"math", front:"y = α + β·log(x). Interpret β.", back:"A 1% increase in x → β/100 units change in y.", why:"Example: β = 200 → a 1% rise in x raises y by 2 units." },
+  { id:"c4-8", lec:4, tag:"math", front:"log(y) = α + β·log(x). Interpret β.", back:"An elasticity: a 1% increase in x → β% change in y.", why:"Rule: whichever variable is logged, think in %." },
+  // L5
+  { id:"c5-1", lec:5, tag:"math", weak:true, front:"Category dummies WITH an intercept: setup and meaning?", back:"Omit one category (the baseline). Intercept = baseline mean. Each coefficient = difference from the baseline.", why:"Group mean = intercept + its coefficient. The coefficient alone is NOT the group's mean." },
+  { id:"c5-2", lec:5, tag:"math", weak:true, front:"Category dummies WITHOUT an intercept: meaning?", back:"Include every category. Each coefficient = that group's mean.", why:"Without the intercept there's no baseline, so nothing is a difference." },
+  { id:"c5-3", lec:5, tag:"traps", front:"Intercept + a dummy for EVERY category?", back:"The dummy trap: perfect multicollinearity. It can't be estimated.", why:"The dummies sum to 1, which is exactly the intercept column. Drop one dummy or the intercept." },
+  { id:"c5-4", lec:5, tag:"math", front:"y = α + βx + d(γ + δx), d = 1 if x ≥ a. Jump at a? Kink?", back:"Jump at the cutoff = γ + δa. δ = the kink (change in slope).", why:"Slope below a is β, above a is β + δ. The jump is γ alone only if a = 0." },
+  { id:"c5-5", lec:5, tag:"math", front:"With an interaction x₁·x₂, what does the coefficient on x₁ mean?", back:"The effect of x₁ ONLY when x₂ = 0.", why:"Write out all four groups. The effect of x₁ for others includes the interaction term." },
+  { id:"c5-6", lec:5, tag:"math", front:"y = α + βd₁ + γd₂ + δd₁d₂ with two dummies. What is δ?", back:"A difference in differences.", why:"Groups: (0,0) α · (1,0) α+β · (0,1) α+γ · (1,1) α+β+γ+δ. δ = [(1,1)−(0,1)] − [(1,0)−(0,0)]." },
+  { id:"c5-7", lec:5, tag:"math", front:"y = β₀ + β₁x₁ + β₂x₂ + β₃x₁x₂ (continuous). Effect of x₂?", back:"β₂ + β₃x₁. It depends on the level of x₁.", why:"Take the change in y for one more unit of x₂, holding x₁ fixed." },
+  // L6
+  { id:"c6-1", lec:6, tag:"probability", front:"What does the CLT tell us about β̂?", back:"β̂ is approximately normal, centered at the truth, with variance shrinking as n grows.", why:"That's why we can use normal cutoffs (1.64 / 1.96 / 2.58)." },
+  { id:"c6-2", lec:6, tag:"traps", weak:true, front:"What is a p-value?", back:"P(a result at least this extreme | H₀ true). NOT P(H₀ true).", why:"Trap answer: “the p-value is the probability that β = c.” Always false. β is fixed, so it has no probability." },
+  { id:"c6-3", lec:6, tag:"traps", front:"Can we “accept” H₀?", back:"No. Only reject or fail to reject.", why:"Failing to reject means the data are consistent with H₀, not that H₀ is true." },
+  { id:"c6-4", lec:6, tag:"probability", front:"|t| needed to reject at 10% / 5% / 1% (two-sided)?", back:"1.64 / 1.96 / 2.58", why:"Bigger |t| → smaller p-value." },
+  { id:"c6-5", lec:6, tag:"probability", front:"When do you reject H₀?", back:"When p < the significance level (equivalently, |t| > the cutoff).", why:"p = Pr(|T| > |t|) under H₀." },
+  { id:"c6-6", lec:6, tag:"probability", weak:true, front:"Reject at 1% → what about 5% and 10%?", back:"Also reject at 5% and 10%.", why:"Nested: p < 0.01 means p < 0.05 and p < 0.10. The reverse isn't guaranteed." },
+  { id:"c6-7", lec:6, tag:"probability", front:"Fail to reject at 10% → 5% and 1%?", back:"Also fail to reject at 5% and 1%.", why:"p ≥ 0.10 means p is above the smaller levels too." },
+  // L7
+  { id:"c7-1", lec:7, tag:"probability", front:"What makes SE(β̂) bigger or smaller?", back:"↑ with more error noise. ↓ with more spread in x. ↓ with larger n.", why:"More noise hides the signal. More spread in x and more data pin down the slope." },
+  { id:"c7-2", lec:7, tag:"probability", front:"t-statistic for H₀: β = c?", back:"t = (β̂ − c) / se(β̂)", why:"Compare |t| with 1.64 / 1.96 / 2.58." },
+  { id:"c7-3", lec:7, tag:"traps", front:"What do Stata's t and P>|t| columns test?", back:"Only H₀: β = 0, two-sided.", why:"Trap: “Stata's p-value tests β = 9500.” To test another value, compute (β̂ − c)/se yourself." },
+  { id:"c7-4", lec:7, tag:"probability", front:"One-sided p-value vs. two-sided?", back:"One-sided p = half of the two-sided p.", why:"Holds when β̂ falls on the side the alternative predicts." },
+  { id:"c7-5", lec:7, tag:"probability", front:"SE goes up → |t|, p, CI?", back:"|t| ↓, p ↑, CI wider. Harder to reject.", why:"Chain: SE → t → p → decision → CI." },
+  { id:"c7-6", lec:7, tag:"traps", front:"Robust SEs: what changes?", back:"Only the SEs, and they can go UP or DOWN. β̂ is unchanged.", why:"Traps: “robust SEs always increase SEs,” “robust SEs change the coefficient.” Both false." },
+  { id:"c7-7", lec:7, tag:"probability", front:"Heteroskedasticity: bias or SE problem?", back:"SE problem only. β̂ is unbiased, but the regular SEs are wrong. Use robust SEs.", why:"A larger sample does NOT remove heteroskedasticity." },
+  // L8
+  { id:"c8-1", lec:8, tag:"probability", front:"Formula for a 95% CI?", back:"β̂ ± 1.96·se", why:"90%: ± 1.64·se. 99%: ± 2.58·se." },
+  { id:"c8-2", lec:8, tag:"probability", weak:true, front:"Where is β̂ in its confidence interval?", back:"The midpoint.", why:"CI [2, 6] → β̂ = 4. Also: se ≈ width ÷ (2·1.96) ≈ width ÷ 4." },
+  { id:"c8-3", lec:8, tag:"traps", weak:true, front:"“β is in this 95% CI with probability 0.95.” True?", back:"False. β is fixed. 95% of CIs built from repeated samples contain β.", why:"The interval is random; β isn't. Once you compute one CI, β is either in it or not." },
+  { id:"c8-4", lec:8, tag:"probability", weak:true, front:"What values does the 95% CI contain?", back:"Every value c that you'd fail to reject at 5%.", why:"c inside → fail to reject at 5%. c outside → reject at 5%." },
+  { id:"c8-5", lec:8, tag:"probability", weak:true, front:"c is INSIDE the 95% CI → 5%? 1%? 10%?", back:"Fail to reject at 5% and 1%. 10% unknown.", why:"The 99% CI is wider, so c is in it too. The 90% CI is narrower, so it might exclude c." },
+  { id:"c8-6", lec:8, tag:"probability", weak:true, front:"c is OUTSIDE the 95% CI → 5%? 10%? 1%?", back:"Reject at 5% and 10%. 1% unknown.", why:"The 90% CI is narrower, so c is outside it too. The 99% CI is wider and might include c." },
+  { id:"c8-7", lec:8, tag:"probability", weak:true, front:"99% CI vs. 95% CI: which is wider? Easier to reject?", back:"99% is wider, so it's HARDER to reject.", why:"A 90/95/99% CI matches tests at the 10/5/1% levels." },
+  { id:"c8-8", lec:8, tag:"traps", front:"Statistically significant = good fit?", back:"No. Significance ≠ goodness of fit.", why:"A coefficient can be highly significant with a tiny R², and vice versa." },
+  // L9
+  { id:"c9-1", lec:9, tag:"economic", front:"What does “controlling for z” mean?", back:"Holding z fixed when interpreting the coefficient on x.", why:"It compares units with the same z that differ in x." },
+  { id:"c9-2", lec:9, tag:"economic", front:"Why can naive group comparisons mislead?", back:"The groups may differ in other ways (confounders) that also affect y.", why:"That's OVB in plain words." },
+  { id:"c9-3", lec:9, tag:"economic", front:"What are fixed effects?", back:"A dummy for every group, so each group gets its own intercept.", why:"They control for anything constant within a group. They can be controls or the coefficients of interest." },
+  { id:"c9-4", lec:9, tag:"economic", front:"OVB formula?", back:"E[β̂₁] = β₁ + β₂·cov(x, z)/var(x)", why:"β₂ = effect of the omitted z on y. The bias is zero if either piece is zero." },
+  { id:"c9-5", lec:9, tag:"economic", weak:true, front:"OVB requires… (name BOTH conditions)", back:"The omitted variable 1) affects y AND 2) is correlated with x.", why:"Pair rule: both are needed. Only one → no bias." },
+  { id:"c9-6", lec:9, tag:"economic", weak:true, front:"Sign of OVB?", back:"sign(β₂) × sign(cov(x, z)). Same signs → upward. Opposite → downward.", why:"Example: ability raises wages (+) and correlates with schooling (+) → the return to schooling is biased up." },
+  // L10
+  { id:"c10-1", lec:10, tag:"economic", front:"Perfect multicollinearity: examples?", back:"The dummy trap, the same variable in two units, a constant x (with an intercept).", why:"Any exact linear combination. Fix: drop one variable (or the intercept)." },
+  { id:"c10-2", lec:10, tag:"traps", front:"Including x and x² together: perfect multicollinearity?", back:"No. That's fine.", why:"x² isn't a LINEAR function of x. Independent dummies are also fine." },
+  { id:"c10-3", lec:10, tag:"economic", front:"Near-perfect multicollinearity → ?", back:"Bigger SEs, no bias. Don't auto-drop variables.", why:"Dropping a relevant variable can create OVB. Think about it first." },
+  { id:"c10-4", lec:10, tag:"economic", front:"Measurement error in x → ?", back:"Attenuation bias toward 0. Less significant.", why:"The noise makes x look less related to y than it really is." },
+  { id:"c10-5", lec:10, tag:"economic", front:"Measurement error in y → ?", back:"No bias. Bigger SE, less significant.", why:"The noise goes into the error term." },
+  { id:"c10-6", lec:10, tag:"economic", front:"Significant even though x has measurement error. Implication?", back:"The true effect is likely even larger in magnitude.", why:"Attenuation pulls β̂ toward 0, so the truth is further from 0." },
+  { id:"c10-7", lec:10, tag:"traps", front:"Larger sample → ?", back:"Smaller SE, lower p, narrower CI. Fixes NO bias.", why:"Trap: “a larger sample reduces OVB / measurement error / heteroskedasticity.” False." },
+  { id:"c10-8", lec:10, tag:"economic", front:"Add a control that affects y but is uncorrelated with x → ?", back:"β̂ on x doesn't change (no bias either way). Its SE goes DOWN.", why:"The control soaks up error variance, so you gain precision." },
+  { id:"c10-9", lec:10, tag:"economic", front:"Two good reasons to add a control?", back:"1) Fix OVB. 2) Gain precision (smaller SE).", why:"Don't add controls blindly. Ask what each one does." },
+];
+
+/* QUIZ: type "select" (select all that apply) or "match".
+   select: opts = [[text, isCorrect], ...]
+   match:  choices = [labels], pairs = [[item, correctLabel], ...]            */
+const QUIZ = [
+  { id:"q-match-1", type:"match", lec:10, tag:"economic", prompt:"Match each issue to what it does to the regression.",
+    choices:["Biases β̂","Only affects the SE","Can't estimate"],
+    pairs:[["Omitted variable that affects y and is correlated with x","Biases β̂"],["Measurement error in x","Biases β̂"],["Measurement error in y","Only affects the SE"],["Near-perfect multicollinearity","Only affects the SE"],["Perfect multicollinearity","Can't estimate"],["Heteroskedasticity","Only affects the SE"],["Larger sample","Only affects the SE"],["Relevant control uncorrelated with x","Only affects the SE"]],
+    why:"Bias: OVB and measurement error in x (toward 0). Everything else on this list changes only the SEs (or, for perfect multicollinearity, makes the model impossible to estimate)." },
+  { id:"q-match-2", type:"match", lec:8, tag:"probability", weak:true, prompt:"The 95% CI for β is [1, 5]. Match each test to the decision.",
+    choices:["Reject","Fail to reject","Can't tell"],
+    pairs:[["H₀: β = 0 at 5%","Reject"],["H₀: β = 0 at 10%","Reject"],["H₀: β = 0 at 1%","Can't tell"],["H₀: β = 4 at 5%","Fail to reject"],["H₀: β = 4 at 1%","Fail to reject"],["H₀: β = 4 at 10%","Can't tell"]],
+    why:"0 is outside the 95% CI → reject at 5% and 10%, 1% unknown. 4 is inside → fail at 5% and 1%, 10% unknown." },
+  { id:"q1", type:"select", lec:6, tag:"traps", weak:true, prompt:"A regression reports p = 0.03 for H₀: β = 0. Select all that are correct.",
+    opts:[["We reject H₀ at the 5% level.",1],["We reject H₀ at the 1% level.",0],["We reject H₀ at the 10% level.",1],["The probability that β = 0 is 3%.",0],["If β were 0, a result at least this extreme would happen about 3% of the time.",1]],
+    why:"0.01 < 0.03 < 0.05: reject at 5% and 10%, not at 1%. A p-value is never the probability that H₀ is true." },
+  { id:"q2", type:"select", lec:8, tag:"probability", weak:true, prompt:"The 95% confidence interval for β is [2, 6]. Select all that are correct.",
+    opts:[["β̂ = 4.",1],["We reject H₀: β = 0 at the 5% level.",1],["We reject H₀: β = 0 at the 10% level.",1],["We reject H₀: β = 5 at the 5% level.",0],["β is in [2, 6] with probability 0.95.",0],["se(β̂) is about 1.",1]],
+    why:"β̂ is the midpoint. 0 is outside → reject at 5% and 10%. 5 is inside → fail to reject. se ≈ (6 − 2)/(2·1.96) ≈ 1." },
+  { id:"q3", type:"select", lec:8, tag:"probability", weak:true, prompt:"The 95% CI for β is [−1, 3]. For H₀: β = 0, select all that are correct.",
+    opts:[["We fail to reject at the 5% level.",1],["We fail to reject at the 1% level.",1],["We fail to reject at the 10% level.",0],["The 99% CI also contains 0.",1],["We accept that β = 0.",0]],
+    why:"0 is inside → fail at 5% and 1% (the 99% CI is wider). 10% can't be determined. Never “accept.”" },
+  { id:"q4", type:"select", lec:2, tag:"math", weak:true, prompt:"Which properties do OLS residuals ALWAYS have?",
+    opts:[["They sum to zero.",1],["They have zero covariance with x.",1],["They have zero covariance with y.",0],["They are all zero when R² is high.",0],["They equal the true errors.",0]],
+    why:"Pair rule: they sum to 0 and are uncorrelated with x. Not with y, and residuals are not errors." },
+  { id:"q5", type:"select", lec:9, tag:"economic", weak:true, prompt:"Omitting z from a regression of y on x biases β̂ when… (select all)",
+    opts:[["z affects y and is correlated with x.",1],["z affects y but is uncorrelated with x.",0],["z is correlated with x but has no effect on y.",0],["If z raises y and cov(x, z) > 0, the bias is upward.",1],["Collecting a larger sample removes the bias.",0]],
+    why:"Both conditions are needed. Sign = sign(β₂)·sign(cov). A larger n never fixes bias." },
+  { id:"q6", type:"select", lec:4, tag:"math", weak:true, prompt:"wage = 20 − 3·female (female = 1 for women). Select all that are correct.",
+    opts:[["Men's average wage is 20.",1],["Women's average wage is 17.",1],["Women's average wage is −3.",0],["Women earn 3 less than men on average.",1],["This shows that being female causes lower wages.",0]],
+    why:"Intercept = baseline (men) mean. Coefficient = difference. Women's mean = 20 − 3 = 17. Association, not causation." },
+  { id:"q7", type:"select", lec:5, tag:"math", weak:true, prompt:"Regions are North, South, West. y = 50 + 5·South − 2·West (with an intercept). Select all that are correct.",
+    opts:[["The North mean is 50.",1],["The South mean is 55.",1],["The West mean is 48.",1],["The South mean is 5.",0],["We could also add a North dummy to this regression.",0]],
+    why:"The omitted category (North) is the baseline = intercept. Adding a North dummy would be the dummy trap." },
+  { id:"q8", type:"select", lec:10, tag:"economic", prompt:"x is measured with (classical) error. Select all that are correct.",
+    opts:[["β̂ is biased toward 0.",1],["The estimate tends to be less significant.",1],["β̂ is unbiased; only the SE changes.",0],["If β̂ is still significant, the true effect is probably larger in magnitude.",1],["A larger sample removes the bias.",0]],
+    why:"Error in x → attenuation toward 0. Error in y would leave β̂ unbiased." },
+  { id:"q9", type:"select", lec:10, tag:"economic", prompt:"y is measured with (classical) error. Select all that are correct.",
+    opts:[["β̂ is unbiased.",1],["The SE of β̂ is larger.",1],["β̂ is biased toward 0.",0],["The estimate tends to be less significant.",1]],
+    why:"Error in y goes into the error term: no bias, more noise." },
+  { id:"q10", type:"select", lec:7, tag:"traps", prompt:"The errors are heteroskedastic. Select all that are correct.",
+    opts:[["β̂ is the same with regular and robust SEs.",1],["Robust SEs are always larger than regular SEs.",0],["Robust SEs can be smaller than regular SEs.",1],["Heteroskedasticity biases β̂.",0],["The regular SEs are not valid.",1]],
+    why:"Robust SEs fix the SE (up or down). β̂ doesn't change, and there's no bias." },
+  { id:"q11", type:"select", lec:7, tag:"traps", prompt:"Stata reports β̂ = 9800, se = 200, t = 49, P>|t| = 0.000. You want to test H₀: β = 9500. Select all that are correct.",
+    opts:[["Stata's p-value already tests β = 9500.",0],["The t-statistic for H₀: β = 9500 is 1.5.",1],["We reject β = 9500 at the 5% level.",0],["We reject β = 9500 at the 10% level.",0],["We fail to reject β = 9500 at the 5% level.",1]],
+    why:"Stata tests only β = 0. t = (9800 − 9500)/200 = 1.5 < 1.64, so fail to reject at 10% and 5%." },
+  { id:"q12", type:"select", lec:4, tag:"math", prompt:"You add another regressor to a model. Select all that are correct.",
+    opts:[["R² cannot fall.",1],["Adjusted R² can fall.",1],["If R² rises, the new coefficient is significant.",0],["A higher R² means there is no OVB.",0],["Out-of-sample predictions can get worse.",1]],
+    why:"R² never falls. Fit ≠ significance ≠ no OVB. Overfitting hurts out-of-sample predictions." },
+  { id:"q13", type:"select", lec:2, tag:"math", prompt:"y is earnings in dollars, x is hours. You re-measure y in thousands of dollars. Select all that are correct.",
+    opts:[["The slope is divided by 1000.",1],["The intercept is divided by 1000.",1],["The t-statistic on the slope is unchanged.",1],["R² changes.",0],["The intercept is unchanged.",0]],
+    why:"Scaling y scales both the slope and the intercept the same way. Significance and R² are unchanged." },
+  { id:"q14", type:"select", lec:10, tag:"economic", prompt:"Which of these cause PERFECT multicollinearity?",
+    opts:[["Income in dollars and income in thousands of dollars, both included.",1],["Including x and x².",0],["An intercept plus both a male and a female dummy.",1],["A variable that equals 1 for every observation, plus an intercept.",1],["Two variables with correlation 0.95.",0]],
+    why:"Exact linear combinations only. x² isn't linear in x. Correlation of 0.95 is near-perfect: bigger SEs, but it can still be estimated." },
+  { id:"q15", type:"select", lec:10, tag:"traps", prompt:"You increase the sample size, all else equal. Select all that are correct.",
+    opts:[["The SE falls.",1],["The CI gets narrower.",1],["OVB shrinks.",0],["Attenuation bias from measurement error in x disappears.",0],["It becomes easier to reject a false null.",1]],
+    why:"More data → more precision. It fixes no bias." },
+  { id:"q16", type:"select", lec:5, tag:"math", prompt:"y = α + β·treat + γ·post + δ·treat·post. Select all that are correct.",
+    opts:[["α is the mean for the control group before.",1],["β is the treatment − control difference before.",1],["γ is the before → after change for the control group.",1],["δ is the difference in differences.",1],["β is the effect of treatment in every period.",0]],
+    why:"Write out the four groups: (0,0) α · (1,0) α+β · (0,1) α+γ · (1,1) α+β+γ+δ." },
+  { id:"q17", type:"select", lec:5, tag:"math", prompt:"y = α + βx + d(γ + δx), where d = 1 if x ≥ a (a ≠ 0). Select all that are correct.",
+    opts:[["The slope below a is β.",1],["The slope above a is β + δ.",1],["The jump at a is γ.",0],["The jump at a is γ + δa.",1],["δ measures the change in slope (the kink).",1]],
+    why:"At x = a, the right side adds γ + δa. γ alone is the jump only if a = 0." },
+  { id:"q18", type:"select", lec:4, tag:"math", prompt:"Select all correct interpretations.",
+    opts:[["log(wage) = α + 0.08·educ: one more year → about 8% higher wage.",1],["log(wage) = α + 0.08·educ: one more year → $0.08 higher wage.",0],["log(wage) = α + 0.08·educ: 0.08 is an elasticity.",0],["log(y) = α + 0.5·log(x): a 1% rise in x → a 0.5% rise in y.",1],["y = α + 200·log(x): a 1% rise in x → y rises by 2 units.",1]],
+    why:"log y: 100β%. log-log: elasticity. log x: β/100 units." },
+  { id:"q19", type:"select", lec:1, tag:"math", prompt:"Select all that are correct.",
+    opts:[["β̂ varies from sample to sample.",1],["β varies from sample to sample.",0],["Residuals can be computed; errors can't.",1],["A regression coefficient by itself proves causation.",0],["For one person we can observe both y₁ and y₀.",0]],
+    why:"Hat = random estimate. No hat = fixed truth. We only see one potential outcome." },
+  { id:"q20", type:"select", lec:9, tag:"economic", prompt:"A regression includes state fixed effects. Select all that are correct.",
+    opts:[["Each state gets its own intercept.",1],["It controls for anything constant within a state.",1],["It controls for things that change within a state over time.",0],["With an intercept, one state dummy must be omitted.",1]],
+    why:"Fixed effects = a dummy per group. Keep the intercept + all dummies and you hit the dummy trap." },
+  { id:"q21", type:"select", lec:6, tag:"probability", prompt:"You get t = 2.2 for a two-sided test. Select all that are correct.",
+    opts:[["Reject at 10%.",1],["Reject at 5%.",1],["Reject at 1%.",0],["The p-value is between 0.01 and 0.05.",1],["If β̂ is on the predicted side, the one-sided p-value is about half the two-sided one.",1]],
+    why:"1.96 < 2.2 < 2.58. One-sided p = two-sided p ÷ 2." },
+  { id:"q22", type:"select", lec:10, tag:"economic", prompt:"You add a control w that affects y but is uncorrelated with x. Select all that are correct.",
+    opts:[["β̂ on x changes on average.",0],["The SE of β̂ on x tends to fall.",1],["It removes OVB.",0],["R² rises or stays the same.",1]],
+    why:"No OVB to remove (w is uncorrelated with x), but it reduces error variance → more precision." },
+  { id:"q23", type:"select", lec:8, tag:"traps", prompt:"Select all statements that are FALSE (the professor's traps).",
+    opts:[["The p-value is the probability that β = c.",1],["β is in the 95% CI with probability 0.95.",1],["We accept the null.",1],["Robust SEs always increase SEs.",1],["β̂ is the midpoint of its CI.",0]],
+    why:"All four traps are false. β̂ is the midpoint, which is true." },
+];
+
+/* ===================================================================== */
+const TAGS = [["math","Math"],["probability","Probability"],["economic","Economic"],["traps","Traps"]];
+const MAX_LEC = 15;
+const KEY = "econ11020-v1";
+const $ = s => document.querySelector(s);
+const view = $("#view");
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+const lecsWithContent = [...new Set([...CARDS, ...QUIZ].map(c => c.lec))].sort((a,b)=>a-b);
+const S = Object.assign({ mode:"cards", deck:"all", lecs:lecsWithContent.filter(l=>l<=10), tags:TAGS.map(t=>t[0]), interleave:true, scale:1, missed:[], seeded:false, quizPts:0, quizMax:0 }, load());
+if (!S.seeded) { // first visit: start the missed pile with the practice-midterm weak spots
+  S.missed = [...new Set([...S.missed, ...CARDS.filter(c=>c.weak).map(c=>c.id), ...QUIZ.filter(q=>q.weak).map(q=>q.id)])];
+  S.seeded = true; save();
+}
+
+function shuffle(a) { a = a.slice(); for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function order(items) {
+  if (!S.interleave) return shuffle(items);
+  const groups = TAGS.map(([t]) => shuffle(items.filter(i=>i.tag===t))).filter(g=>g.length);
+  const out = [];
+  while (groups.some(g=>g.length)) for (const g of shuffle(groups)) if (g.length) out.push(g.pop());
+  return out;
+}
+function pool(src) {
+  return src.filter(c => S.lecs.includes(c.lec) && S.tags.includes(c.tag) &&
+    (S.deck==="all" || (S.deck==="missed" && S.missed.includes(c.id)) || (S.deck==="weak" && c.weak)));
+}
+
+let deck = [], idx = 0, flipped = false, tally = { got:0, miss:0 }, answered = false;
+function rebuild() { deck = order(pool(S.mode==="cards" ? CARDS : QUIZ)); idx = 0; flipped = false; answered = false; tally = { got:0, miss:0 }; render(); }
+
+function setMissed(id, on) {
+  const has = S.missed.includes(id);
+  if (on && !has) S.missed.push(id);
+  if (!on && has) S.missed = S.missed.filter(x=>x!==id);
+  save(); renderChrome();
+}
+
+/* ---------- chrome ---------- */
+function renderChrome() {
+  $("#m-cards").setAttribute("aria-pressed", S.mode==="cards");
+  $("#m-quiz").setAttribute("aria-pressed", S.mode==="quiz");
+  document.querySelectorAll("#decks button").forEach(b => b.setAttribute("aria-pressed", b.dataset.deck===S.deck));
+  const src = S.mode==="cards" ? CARDS : QUIZ;
+  $("#missedCount").textContent = "(" + src.filter(c=>S.missed.includes(c.id)).length + ")";
+  document.querySelectorAll(".fontsz button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.scale===S.scale));
+  document.documentElement.style.setProperty("--scale", S.scale);
+  const lc = $("#lecChips"); lc.innerHTML = "";
+  for (let l=1; l<=MAX_LEC; l++) {
+    const b = document.createElement("button"); b.className="chip lec"; b.textContent="L"+l;
+    b.disabled = !lecsWithContent.includes(l); b.setAttribute("aria-pressed", S.lecs.includes(l));
+    b.onclick = () => { S.lecs = S.lecs.includes(l) ? S.lecs.filter(x=>x!==l) : [...S.lecs, l]; save(); renderChrome(); rebuild(); };
+    lc.appendChild(b);
+  }
+  const tc = $("#tagChips"); tc.innerHTML = "";
+  for (const [t,label] of TAGS) {
+    const b = document.createElement("button"); b.className="chip"; b.innerHTML = `<span class="dot" style="background:var(--t-${t})"></span>${label}`;
+    b.setAttribute("aria-pressed", S.tags.includes(t));
+    b.onclick = () => { S.tags = S.tags.includes(t) ? S.tags.filter(x=>x!==t) : [...S.tags, t]; save(); renderChrome(); rebuild(); };
+    tc.appendChild(b);
+  }
+  $("#interleave").checked = S.interleave;
+  const lecTxt = S.lecs.length===lecsWithContent.length ? "All lectures" : S.lecs.length ? "L" + S.lecs.slice().sort((a,b)=>a-b).join(", ") : "No lectures";
+  const tagTxt = S.tags.length===TAGS.length ? "all topics" : S.tags.length ? S.tags.join(", ") : "no topics";
+  $("#filterSum").textContent = lecTxt + " · " + tagTxt + (S.interleave ? " · interleaved" : "");
+}
+
+/* ---------- views ---------- */
+function meta(c) {
+  const tagLabel = TAGS.find(t=>t[0]===c.tag)[1];
+  return `<div class="meta"><span class="lecbadge">L${c.lec}</span><span class="tag ${c.tag}">${tagLabel}</span>${S.missed.includes(c.id)?'<span class="flag">In missed pile</span>':(c.weak?'<span class="flag">Weak spot</span>':'')}</div>`;
+}
+function statusBar(label) {
+  const pct = deck.length ? Math.round(100*idx/deck.length) : 0;
+  return `<div class="status"><span>${label} <b>${Math.min(idx+1, deck.length)}</b> of <b>${deck.length}</b></span><span>${S.mode==="cards" ? `Got <b>${tally.got}</b> · Missed <b>${tally.miss}</b>` : `Score <b>${fmt(S.quizPts)}</b> / <b>${S.quizMax}</b>`}</span></div><div class="progress"><i style="width:${pct}%"></i></div>`;
+}
+function fmt(n) { return Math.round(n*10)/10; }
+
+function emptyMsg() {
+  const msg = S.deck==="missed" ? "Your missed pile is empty for these filters. Nice work." : "No items match these filters.";
+  view.innerHTML = `<div class="card done"><h2>Nothing here</h2><p class="empty">${msg}</p><div class="actions"><button class="btn" id="toAll">Study all</button><button class="btn" id="openF">Change filters</button></div></div>`;
+  $("#toAll").onclick = () => { S.deck="all"; S.lecs=lecsWithContent.slice(); S.tags=TAGS.map(t=>t[0]); save(); renderChrome(); rebuild(); };
+  $("#openF").onclick = () => { $("#filters").open = true; $("#filters").scrollIntoView({block:"nearest"}); };
+}
+
+function render() {
+  if (!deck.length) return emptyMsg();
+  if (idx >= deck.length) return doneView();
+  S.mode==="cards" ? cardView() : quizView();
+}
+
+function cardView() {
+  const c = deck[idx];
+  view.innerHTML = statusBar("Card") + `
+    <div class="card flipcard fade" id="card" role="button" tabindex="0" aria-label="${flipped?'Show question':'Show answer'}">
+      ${meta(c)}
+      ${flipped
+        ? `<div class="side">Answer</div><p class="front" style="font-size:1.05rem;color:var(--muted)">${c.front}</p><p class="back">${c.back}</p>${c.why?`<p class="why">${c.why}</p>`:""}`
+        : `<div class="side">Question</div><p class="front">${c.front}</p><p class="hint">Tap the card or press Space to see the answer.</p>`}
+    </div>
+    <div class="actions">
+      <button class="btn good" id="got">Got it</button>
+      <button class="btn bad" id="miss">Missed it</button>
+    </div>
+    <div class="subactions"><button class="ghost" id="prev">← Back</button><button class="ghost" id="shuf">Shuffle</button><button class="ghost" id="skip">Skip →</button></div>`;
+  const card = $("#card");
+  card.onclick = flip; card.onkeydown = e => { if (e.key==="Enter") { e.preventDefault(); flip(); } };
+  $("#got").onclick = () => mark(true);
+  $("#miss").onclick = () => mark(false);
+  $("#prev").onclick = () => { if (idx>0) { idx--; flipped=false; render(); } };
+  $("#skip").onclick = () => { idx++; flipped=false; render(); };
+  $("#shuf").onclick = rebuild;
+}
+function flip() { flipped = !flipped; render(); }
+function mark(ok) {
+  const c = deck[idx];
+  setMissed(c.id, !ok); ok ? tally.got++ : tally.miss++;
+  idx++; flipped = false; render();
+}
+
+function quizView() {
+  const q = deck[idx];
+  let body;
+  if (q.type==="match") {
+    body = `<p class="qnote">Choose one answer for each row.</p><div class="match">` + q.pairs.map(([item],i) =>
+      `<div class="cell">${item}</div><div class="cell"><select id="m${i}" aria-label="${item}"><option value="">Choose…</option>${q.choices.map(ch=>`<option>${ch}</option>`).join("")}</select> <span id="mr${i}"></span></div>`).join("") + `</div>`;
+  } else {
+    body = `<p class="qnote">Select all that apply · 10 points</p><div class="opts">` + q.opts.map(([t],i) =>
+      `<label class="opt" id="o${i}"><input type="checkbox" id="cb${i}"><span>${t}</span><span class="mark" id="mk${i}"></span></label>`).join("") + `</div>`;
+  }
+  view.innerHTML = statusBar("Question") + `
+    <div class="card fade">
+      ${meta(q)}
+      <p class="qprompt">${q.prompt}</p>
+      ${body}
+      <div id="result"></div>
+    </div>
+    <div class="actions"><button class="btn primary" id="submit">Check answer</button><button class="btn" id="next">Skip →</button></div>
+    <div class="subactions"><button class="ghost" id="shuf">Shuffle</button><button class="ghost" id="reset">Reset score</button></div>`;
+  if (q.type==="select") q.opts.forEach((_,i) => { $("#cb"+i).onchange = e => $("#o"+i).classList.toggle("sel", e.target.checked); });
+  $("#submit").onclick = () => grade(q);
+  $("#next").onclick = () => { idx++; answered=false; render(); };
+  $("#shuf").onclick = rebuild;
+  $("#reset").onclick = () => { S.quizPts=0; S.quizMax=0; save(); render(); };
+  answered = false;
+}
+
+function grade(q) {
+  if (answered) return; answered = true;
+  let pts, detail;
+  if (q.type==="match") {
+    let right = 0;
+    q.pairs.forEach(([,ans],i) => {
+      const sel = $("#m"+i), ok = sel.value===ans; if (ok) right++;
+      sel.disabled = true;
+      $("#mr"+i).innerHTML = ok ? '<span class="ok">✓</span>' : `<span class="no">✗ ${ans}</span>`;
+    });
+    pts = 10*right/q.pairs.length;
+    detail = `${right} of ${q.pairs.length} rows correct`;
+  } else {
+    const n = q.opts.filter(o=>o[1]).length; let good=0, bad=0;
+    q.opts.forEach(([,ok],i) => {
+      const picked = $("#cb"+i).checked, el = $("#o"+i), mk = $("#mk"+i);
+      $("#cb"+i).disabled = true; el.classList.remove("sel");
+      if (picked && ok) { good++; el.classList.add("r-hit"); mk.textContent = "+ correct"; }
+      else if (picked && !ok) { bad++; el.classList.add("r-wrong"); mk.textContent = "− wrong pick"; }
+      else if (!picked && ok) { el.classList.add("r-miss"); mk.textContent = "missed"; }
+    });
+    pts = Math.max(0, (good-bad)*10/n);
+    detail = `${n} correct answers → ±${fmt(10/n)} each · ${good} right, ${bad} wrong`;
+  }
+  S.quizPts += pts; S.quizMax += 10; setMissed(q.id, pts < 10);
+  $("#result").innerHTML = `<div class="score"><span class="big">${fmt(pts)} / 10</span><span class="math">${detail}</span></div><p class="why">${q.why}</p>`;
+  $("#submit").disabled = true;
+  $("#next").textContent = "Next →"; $("#next").classList.add("primary");
+  save();
+  view.querySelector(".status span:last-child").innerHTML = `Score <b>${fmt(S.quizPts)}</b> / <b>${S.quizMax}</b>`;
+}
+
+function doneView() {
+  const src = S.mode==="cards" ? CARDS : QUIZ;
+  const missedHere = src.filter(c=>S.missed.includes(c.id)).length;
+  view.innerHTML = `<div class="progress"><i style="width:100%"></i></div>
+    <div class="card done fade">
+      <h2>Deck finished</h2>
+      <p>${S.mode==="cards" ? `Got <b>${tally.got}</b> · Missed <b>${tally.miss}</b>.` : `Running score <b>${fmt(S.quizPts)}</b> / <b>${S.quizMax}</b>.`} Your missed pile has <b>${missedHere}</b> ${S.mode==="cards"?"cards":"questions"}.</p>
+      <div class="actions"><button class="btn primary" id="again">Go again (reshuffled)</button><button class="btn bad" id="rev">Review missed pile</button></div>
+    </div>`;
+  $("#again").onclick = rebuild;
+  $("#rev").onclick = () => { S.deck="missed"; save(); renderChrome(); rebuild(); };
+}
+
+/* ---------- wiring ---------- */
+$("#m-cards").onclick = () => { S.mode="cards"; save(); renderChrome(); rebuild(); };
+$("#m-quiz").onclick = () => { S.mode="quiz"; save(); renderChrome(); rebuild(); };
+document.querySelectorAll("#decks button").forEach(b => b.onclick = () => { S.deck=b.dataset.deck; save(); renderChrome(); rebuild(); });
+document.querySelectorAll(".fontsz button").forEach(b => b.onclick = () => { S.scale=+b.dataset.scale; save(); renderChrome(); });
+$("#interleave").onchange = e => { S.interleave = e.target.checked; save(); renderChrome(); rebuild(); };
+$("#lecMid").onclick = () => { S.lecs = lecsWithContent.filter(l=>l<=10); save(); renderChrome(); rebuild(); };
+$("#lecAll").onclick = () => { S.lecs = lecsWithContent.slice(); save(); renderChrome(); rebuild(); };
+document.addEventListener("keydown", e => {
+  if (e.target.matches("input, select, textarea, button") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (S.mode==="cards" && idx < deck.length) {
+    if (e.key===" ") { e.preventDefault(); flip(); }
+    else if (e.key==="1") mark(true);
+    else if (e.key==="2") mark(false);
+    else if (e.key==="ArrowRight") { idx++; flipped=false; render(); }
+    else if (e.key==="ArrowLeft" && idx>0) { idx--; flipped=false; render(); }
+  } else if (S.mode==="quiz" && e.key==="Enter" && idx < deck.length) {
+    answered ? (idx++, answered=false, render()) : grade(deck[idx]);
+  }
+});
+
+renderChrome(); rebuild();
+</script>
+<!--BODY-END-->
+</body>
+</html>
