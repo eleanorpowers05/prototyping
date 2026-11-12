@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mood Food</title>
+  <meta name="description" content="Find a recipe by mood, by what's in your fridge, or by spinning the wheel.">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/">Mood Food</a>
+    <nav class="tabs" aria-label="Main">
+      <a href="#/" data-route="search">Search</a>
+      <a href="#/fridge" data-route="fridge">What's in my fridge</a>
+      <a href="#/spin" data-route="spin">Spin the wheel</a>
+    </nav>
+  </header>
+
+  <div id="banner" class="banner" role="alert" hidden></div>
+
+  <main>
+    <!-- 1. Search -->
+    <section id="view-search" class="view" data-view="search">
+      <div class="hero">
+        <h1>I'm in the mood for…</h1>
+        <form id="search-form" class="searchbar" role="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="search-input" type="search" autocomplete="off" aria-label="What are you in the mood for?" placeholder="ramen">
+          <button type="submit" class="btn primary">Find recipes</button>
+        </form>
+
+        <div class="filters" id="filters">
+          <div class="filter" data-filter="cuisine">
+            <button type="button" class="filter-btn" aria-expanded="false">Cuisine <span class="count"></span></button>
+            <div class="panel" hidden><div class="chips"></div></div>
+          </div>
+          <div class="filter" data-filter="intolerances">
+            <button type="button" class="filter-btn" aria-expanded="false">Allergies <span class="count"></span></button>
+            <div class="panel" hidden><p class="panel-note">Hide recipes containing:</p><div class="chips"></div></div>
+          </div>
+          <div class="filter" data-filter="diet">
+            <button type="button" class="filter-btn" aria-expanded="false">Diet <span class="count"></span></button>
+            <div class="panel" hidden><div class="chips"></div></div>
+          </div>
+          <div class="filter" data-filter="budget">
+            <button type="button" class="filter-btn" aria-expanded="false">Budget <span class="count"></span></button>
+            <div class="panel" hidden><p class="panel-note">Cost per serving:</p><div class="chips"></div></div>
+          </div>
+        </div>
+        <div id="active-filters" class="active-filters"></div>
+      </div>
+
+      <div id="search-status" class="status" aria-live="polite"></div>
+      <div id="search-results" class="grid"></div>
+    </section>
+
+    <!-- 2. Fridge -->
+    <section id="view-fridge" class="view" data-view="fridge" hidden>
+      <div class="page-head">
+        <h1>What's in my fridge?</h1>
+        <p class="sub">Add what you have and we'll find recipes that use the most of it.</p>
+      </div>
+      <form id="fridge-form" class="searchbar">
+        <input id="fridge-input" type="text" autocomplete="off" aria-label="Add an ingredient" placeholder="Add an ingredient, like eggs">
+        <button type="submit" class="btn">Add</button>
+      </form>
+      <div id="fridge-tags" class="tags"></div>
+      <div class="suggest">
+        <span class="sub">Quick add:</span>
+        <div id="fridge-suggest" class="chips"></div>
+      </div>
+      <div class="actions">
+        <button id="fridge-go" class="btn primary" type="button" disabled>Find recipes</button>
+        <button id="fridge-clear" class="btn ghost" type="button">Clear all</button>
+      </div>
+      <p class="sub small">Allergy and budget filters don't apply on this page yet.</p>
+      <div id="fridge-status" class="status" aria-live="polite"></div>
+      <div id="fridge-results" class="grid"></div>
+    </section>
+
+    <!-- 3. Spin -->
+    <section id="view-spin" class="view" data-view="spin" hidden>
+      <div class="page-head">
+        <h1>Spin the wheel</h1>
+        <p class="sub">Can't decide? Let the wheel pick a cuisine and we'll find a random recipe.</p>
+      </div>
+      <div class="spin-layout">
+        <div class="wheel-wrap">
+          <div class="pointer" aria-hidden="true"></div>
+          <svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Cuisine wheel"></svg>
+          <button id="spin-btn" class="spin-btn" type="button">Spin</button>
+        </div>
+        <div class="spin-side">
+          <label class="check"><input id="spin-use-filters" type="checkbox" checked> Use my allergy, diet and budget filters</label>
+          <div id="spin-status" class="status" aria-live="polite"></div>
+          <div id="spin-result"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Recipe detail -->
+  <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title">
+    <button class="close" type="button" aria-label="Close">×</button>
+    <div id="recipe-body"></div>
+  </dialog>
+
+  <footer class="footer">Recipes from <a href="https://spoonacular.com/food-api" target="_blank" rel="noopener">Spoonacular</a>.</footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
