@@ -12,6 +12,9 @@ Recipes come from the [Spoonacular API](https://spoonacular.com/food-api). Deplo
 - `index.html`, `styles.css`, `app.js`: the website (no build step).
 - `api/spoonacular.js`: a Vercel serverless function. It's the only code that talks to Spoonacular, and it adds the API key so the key never appears in the website's code.
 
+## Sample recipes
+Until `SPOONACULAR_API_KEY` is set, the site uses about 20 built-in sample recipes from `lib/demo-data.js`, so every page works with no setup. Adding the key switches to real recipes automatically.
+
 ## Setup
 1. Get a free API key at spoonacular.com/food-api (sign up, then open your Profile / Console).
 2. In Vercel: project → Settings → Environment Variables → add `SPOONACULAR_API_KEY` with the key.

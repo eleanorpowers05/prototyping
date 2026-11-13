@@ -59,6 +59,12 @@ async function api(params, { useCache = true } = {}) {
     throw new ApiError('network', "Couldn't reach the recipe service. Check your connection and try again.");
   }
   if (!res.ok) throw new ApiError(data.error, data.message);
+  if (data.demo) {
+    const banner = $('#banner');
+    banner.textContent = 'Showing sample recipes for now. Real recipes will appear once the Spoonacular key is added.';
+    banner.classList.add('info');
+    banner.hidden = false;
+  }
   if (useCache) cache.set(qs, data);
   return data;
 }
@@ -155,7 +161,9 @@ function recipeCard(r, extra) {
   const meta = [r.readyInMinutes && `${r.readyInMinutes} min`, money(r.pricePerServing) && `${money(r.pricePerServing)}/serving`]
     .filter(Boolean).join(' · ');
   return el('button', { type: 'button', class: 'card', onclick: () => openRecipe(r.id) },
-    el('div', { class: 'card-img' }, r.image ? el('img', { src: r.image, alt: '', loading: 'lazy' }) : null),
+    el('div', { class: 'card-img' }, r.image
+      ? el('img', { src: r.image, alt: '', loading: 'lazy' })
+      : el('span', { class: 'emoji', 'aria-hidden': 'true' }, r.emoji || '🍽')),
     el('div', { class: 'card-body' },
       el('h3', {}, r.title),
       meta ? el('p', { class: 'meta' }, meta) : null,
@@ -345,7 +353,9 @@ async function openRecipe(id) {
     ].filter(Boolean);
     const tags = [...r.cuisines, ...r.diets];
     body.replaceChildren(
-      r.image ? el('img', { class: 'hero-img', src: r.image, alt: '' }) : null,
+      r.image
+        ? el('img', { class: 'hero-img', src: r.image, alt: '' })
+        : el('div', { class: 'hero-emoji', 'aria-hidden': 'true' }, r.emoji || '🍽'),
       el('div', { class: 'recipe-content' },
         el('h2', { id: 'recipe-title' }, r.title),
         facts.length ? el('p', { class: 'facts' }, facts.join('   ')) : null,

@@ -4,6 +4,8 @@
 //
 // Usage from the site: /api/spoonacular?action=search|fridge|recipe&...
 
+const demo = require('../lib/demo-data.js');
+
 const BASE = 'https://api.spoonacular.com';
 const MAX_RESULTS = 30;
 
@@ -110,17 +112,17 @@ function send(res, status, body, cacheSeconds = 0) {
 
 module.exports = async function handler(req, res) {
   const key = process.env.SPOONACULAR_API_KEY;
-  if (!key) {
-    return send(res, 500, {
-      error: 'missing_key',
-      message: 'SPOONACULAR_API_KEY is not set in Vercel → Settings → Environment Variables.',
-    });
-  }
-
   const q = new URL(req.url, 'http://localhost').searchParams;
   const route = ROUTES[q.get('action')];
   if (!route || (route.validate && !route.validate(q))) {
     return send(res, 400, { error: 'bad_request', message: 'Unknown action or bad parameters.' });
+  }
+
+  // No key yet: serve the built-in sample recipes so the whole site still works.
+  if (!key) {
+    const data = demo[q.get('action')](q);
+    if (!data) return send(res, 404, { error: 'not_found', message: 'Recipe not found.' });
+    return send(res, 200, data);
   }
 
   const url = new URL(BASE + route.path(q));
