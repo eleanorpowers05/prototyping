@@ -64,7 +64,7 @@ for (const r of ROOMS) {
   const bw = Math.min(110, (r.x1 - r.x0) * 0.35);
   furniture.push({ kind: 'bench', x: cx - bw / 2, y: cy - 7, w: bw, d: 14, h: 9 });
 }
-furniture.push({ kind: 'desk', x: LOBBY_X - 45, y: 500, w: 90, d: 26, h: 18 });
+furniture.push({ kind: 'plaque', x: LOBBY_X - 62, y: 500, w: 124, d: 20, h: 14 });
 const PEDESTAL = { kind: 'pedestal', x: LOBBY_X - 11, y: 690, w: 22, d: 22, h: 14 };
 furniture.push(PEDESTAL);
 const plants = [
@@ -223,10 +223,20 @@ function planNext(v) {
     const d = pick(doors);
     const next = roomById[d.a === room.id ? d.b : d.a];
     v.path.push(inward(d, room), { x: d.x, y: d.y }, inward(d, next));
-    const dest = next.id === 'lobby' || Math.random() < 0.35 ? randomSpot(next) : viewingSpot(next);
+    const dest = v.guard || next.id === 'lobby' || Math.random() < 0.35 ? randomSpot(next) : viewingSpot(next);
     v.path.push(dest);
   } else {
-    v.path.push(room.id === 'lobby' || Math.random() < 0.35 ? randomSpot(room) : viewingSpot(room));
+    v.path.push(v.guard || room.id === 'lobby' || Math.random() < 0.35 ? randomSpot(room) : viewingSpot(room));
+  }
+}
+const GUARD_ROOMS = ['lobby', 'impressionism', 'okeeffe', 'american'];
+function spawnGuards() {
+  for (const id of GUARD_ROOMS) {
+    const s = randomSpot(roomById[id]);
+    people.push({
+      x: s.x, y: s.y, vx: 0, vy: 0, path: [], wait: rand(2, 8), speed: rand(13, 17), phase: rand(0, 6),
+      body: '#27324a', skin: pick(SKIN), size: 1.08, guard: true,
+    });
   }
 }
 function spawnPeople(n) {
@@ -268,10 +278,28 @@ function collide(v) {
 }
 
 let mouse = null;       // floor position of the cursor
+let flashCooldown = 4;  // seconds until someone may take another flash photo
+const flashes = [];
+const FLASH_TIME = 0.45;
+function takePhoto(v) {
+  const room = roomAt(v.x, v.y);
+  flashes.push({ x: v.x, y: v.y, painting: v.photo.painting, t: 0 });
+  // The nearest guard in the room walks over to have a word.
+  const guard = people.filter((g) => g.guard && roomAt(g.x, g.y) === room)
+    .sort((a, b) => Math.hypot(a.x - v.x, a.y - v.y) - Math.hypot(b.x - v.x, b.y - v.y))[0];
+  if (guard) {
+    guard.path = [{ x: v.x + (guard.x < v.x ? -15 : 15), y: v.y + 4 }];
+    guard.wait = 0;
+    guard.scold = true;
+  }
+}
 const REPEL_R = 62;
 function updatePeople(dt) {
+  flashCooldown -= dt;
   for (const v of people) {
     let ax = 0, ay = 0;
+    v.chasing = false;
+    if (v.say && (v.say.t -= dt) <= 0) v.say = null;
     const startRoom = roomAt(v.x, v.y);
 
     if (v.wait > 0) {
@@ -282,15 +310,40 @@ function updatePeople(dt) {
       const dx = t.x - v.x, dy = t.y - v.y, dist = Math.hypot(dx, dy);
       if (dist < 6) {
         v.path.shift();
-        if (!v.path.length) v.wait = rand(2, 9);
+        if (!v.path.length) {
+          v.wait = v.guard ? rand(6, 14) : rand(2, 9);
+          if (v.scold) { v.scold = false; v.say = { text: 'No flash!', t: 2.4 }; v.wait = 3; }
+          // Now and then, someone looking at a painting takes a flash photo.
+          if (!v.guard && t.facing && flashCooldown <= 0 && Math.random() < 0.3) {
+            v.photo = { t: 0, painting: t.facing, fired: false };
+            v.wait = Math.max(v.wait, 2.4);
+            flashCooldown = rand(7, 13);
+          }
+        }
       } else {
-        ax += (dx / dist) * v.speed * 3 - v.vx * 3;
-        ay += (dy / dist) * v.speed * 3 - v.vy * 3;
+        const pace = v.scold ? 50 : v.speed;   // guards hurry over to flash photographers
+        ax += (dx / dist) * pace * 3 - v.vx * 3;
+        ay += (dy / dist) * pace * 3 - v.vy * 3;
       }
     } else {
       planNext(v);
     }
     if (v.wait > 0 || !v.path.length) { ax -= v.vx * 4; ay -= v.vy * 4; }
+
+    if (v.photo) {
+      v.photo.t += dt;
+      if (!v.photo.fired && v.photo.t >= 1) { v.photo.fired = true; takePhoto(v); }
+      if (v.photo.t > 1.7) v.photo = null;
+    }
+
+    // Guards chase the runaway statue when it comes through their room.
+    if (v.guard && statue.state === 'run') {
+      const dx = statue.x - v.x, dy = statue.y - v.y, d = Math.hypot(dx, dy);
+      if (d < 170 && d > 0.01 && roomAt(statue.x, statue.y) === startRoom) {
+        ax += (dx / d) * 500 - v.vx * 3; ay += (dy / d) * 500 - v.vy * 3;
+        v.chasing = true; v.path = []; v.wait = Math.max(v.wait, 0.8);
+      }
+    }
 
     // Keep a little personal space.
     for (const o of people) {
@@ -304,20 +357,22 @@ function updatePeople(dt) {
     if (mouse) {
       const dx = v.x - mouse.x, dy = v.y - mouse.y, d = Math.hypot(dx, dy);
       if (d < REPEL_R) {
-        const f = (1 - d / REPEL_R) ** 1.5 * 1400;
+        const f = (1 - d / REPEL_R) ** 1.5 * 1400 * (v.guard ? 0.7 : 1);
         const ux = d > 0.01 ? dx / d : rand(-1, 1), uy = d > 0.01 ? dy / d : rand(-1, 1);
         ax += ux * f; ay += uy * f;
         fleeing = true;
       }
     }
 
-    if (statue.state === 'run') {
+    if (statue.state === 'run' && !v.guard) {
       const dx = v.x - statue.x, dy = v.y - statue.y, d = Math.hypot(dx, dy);
-      if (d < 45 && d > 0.01) { const f = (1 - d / 45) * 900; ax += (dx / d) * f; ay += (dy / d) * f; fleeing = true; }
+      const R = 75;   // visitors jump out of the statue's way
+      if (d < R && d > 0.01) { const f = (1 - d / R) ** 1.2 * 1500; ax += (dx / d) * f; ay += (dy / d) * f; fleeing = true; }
     }
 
     v.vx += ax * dt; v.vy += ay * dt;
-    const max = fleeing ? 120 : v.speed * 1.3;
+    if (fleeing) v.photo = null;
+    const max = fleeing ? 120 : v.chasing ? 75 : v.scold ? 48 : v.speed * 1.3;
     const sp = Math.hypot(v.vx, v.vy);
     if (sp > max) { v.vx *= max / sp; v.vy *= max / sp; }
     v.x += v.vx * dt; v.y += v.vy * dt;
@@ -426,9 +481,54 @@ function updateStatue(dt) {
   }
   statue.phase += dt * 16;
 }
+// The statue is pixel art: drawn with simple shapes on a tiny grid, then given hard edges and an outline.
+const STATUE_PX = 1.55;             // floor units per sprite pixel
+const SPR_W = 14, SPR_H = 23;
+const spriteCache = new Map();
+function statueSprite(pose, frame, hot) {
+  const key = `${pose}-${frame}-${hot}`;
+  if (spriteCache.has(key)) return spriteCache.get(key);
+  const c = document.createElement('canvas');
+  c.width = SPR_W; c.height = SPR_H;
+  const g = c.getContext('2d');
+  const marble = '#f5f1e9', shade = '#c8bead';
+  const cap = (x, y, w, h, fill) => { g.fillStyle = fill; g.beginPath(); g.roundRect(x, y, w, h, Math.min(w, h) / 2); g.fill(); };
+  const head = (x, y) => { g.fillStyle = marble; g.beginPath(); g.arc(x, y, 3.5, 0, Math.PI * 2); g.fill(); };
+  if (pose === 'still') {             // thoughtful pose: one arm at its side, one hand raised to the chin
+    cap(3.6, 9.4, 6.8, 11, marble);
+    cap(1.4, 10, 2.4, 8, shade);
+    cap(10.2, 6.4, 2.4, 6.8, shade);
+    head(7.3, 4.6);
+  } else {                            // running: arms and legs swing in four frames
+    const sw = [-2, 0, 2, 0][frame];
+    cap(4.4, 17.5, 2.4, frame === 0 ? 5 : 3.4, shade);
+    cap(7.4, 17.5, 2.4, frame === 2 ? 5 : 3.4, shade);
+    cap(3.6, 9.4, 6.8, 9, marble);
+    cap(1.2, 10 + sw, 2.4, 6.5, shade);
+    cap(10.4, 10 - sw, 2.4, 6.5, shade);
+    head(7, 4.6);
+  }
+  g.globalCompositeOperation = 'source-atop';      // soft shading down the right side
+  g.fillStyle = 'rgba(150, 140, 125, .3)';
+  g.fillRect(8.4, 0, SPR_W, SPR_H);
+  g.globalCompositeOperation = 'source-over';
+  const img = g.getImageData(0, 0, SPR_W, SPR_H), d = img.data;
+  const solid = new Uint8Array(SPR_W * SPR_H);
+  for (let i = 0; i < solid.length; i++) { solid[i] = d[i * 4 + 3] >= 110 ? 1 : 0; d[i * 4 + 3] = solid[i] ? 255 : 0; }
+  const edge = hot ? [181, 84, 60] : [148, 138, 122];
+  for (let y = 0; y < SPR_H; y++) for (let x = 0; x < SPR_W; x++) {
+    const i = y * SPR_W + x;
+    if (solid[i]) continue;
+    const near = (x > 0 && solid[i - 1]) || (x < SPR_W - 1 && solid[i + 1]) || (y > 0 && solid[i - SPR_W]) || (y < SPR_H - 1 && solid[i + SPR_W]);
+    if (near) { d[i * 4] = edge[0]; d[i * 4 + 1] = edge[1]; d[i * 4 + 2] = edge[2]; d[i * 4 + 3] = 235; }
+  }
+  g.putImageData(img, 0, 0);
+  spriteCache.set(key, c);
+  return c;
+}
 function statueRect() {
-  const s = 1.7, base = sy(statue.y) - statue.z;
-  return { x0: statue.x - 8 * s, x1: statue.x + 8 * s, y0: base - 19 * s, y1: base + 3 };
+  const base = sy(statue.y) - statue.z;
+  return { x0: statue.x - (SPR_W * STATUE_PX) / 2, x1: statue.x + (SPR_W * STATUE_PX) / 2, y0: base - SPR_H * STATUE_PX, y1: base + 3 };
 }
 
 // ===== Drawing =====
@@ -490,12 +590,6 @@ function drawBox(b, top, face, edge) {
 }
 function drawWall(b) {
   drawBox(b, '#fffdf8', '#f1eadf', 'rgba(120, 100, 80, .35)');
-  // The lobby sign on the middle wall
-  const SIGN_X = 580;
-  if (b.y + b.d === ROW + T / 2 && b.x <= SIGN_X && b.x + b.w >= SIGN_X) {
-    ctx.fillStyle = 'rgba(60, 45, 35, .7)'; ctx.font = '600 8px Georgia, serif';
-    drawSpaced('THE MINIATURE MUSEUM', SIGN_X, sy(b.y + b.d, H * 0.55), 1.4);
-  }
 }
 function drawPainting(p, hovered) {
   const r = paintingRect(p);
@@ -517,33 +611,34 @@ function drawPainting(p, hovered) {
   if (hovered) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8; ctx.strokeRect(r.x0 - f - 1.2, r.y0 - f - 1.2, w + f * 2 + 2.4, h + f * 2 + 2.4); }
 }
 function drawStatue() {
-  const s = 1.7, x = statue.x, floorY = sy(statue.y);
+  const x = statue.x, floorY = sy(statue.y);
   const running = statue.state === 'run';
-  const bob = running ? Math.abs(Math.sin(statue.phase)) * 2.2 : 0;
+  const bob = running ? Math.abs(Math.sin(statue.phase)) * 2 : 0;
   const base = floorY - statue.z - bob;
-  const marble = '#f6f3ec', shade = '#dcd5c8', edge = 'rgba(110, 100, 85, .6)';
   // shadow: on the pedestal top when standing there, on the floor otherwise
   const shadowY = statue.state === 'still' ? floorY - PEDESTAL.h : floorY;
   ctx.fillStyle = 'rgba(40, 30, 20, .18)';
-  ctx.beginPath(); ctx.ellipse(x, shadowY, 5.5 * s, 2.4 * s, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = statueHovered ? '#b5543c' : edge; ctx.lineWidth = statueHovered ? 1.2 : 0.7;
-  const part = (px, py, w, h, r, fill) => { ctx.fillStyle = fill; roundRect(px, py, w, h, r); ctx.fill(); ctx.stroke(); };
-  if (running) {
-    const swing = Math.sin(statue.phase) * 3 * s;
-    part(x - 6.2 * s, base - 10 * s + swing * 0.3, 2.4 * s, 6.5 * s, 1.2 * s, shade);
-    part(x + 3.8 * s, base - 10 * s - swing * 0.3, 2.4 * s, 6.5 * s, 1.2 * s, shade);
-    part(x - 3.8 * s, base - 11 * s, 7.6 * s, 10 * s, 3.6 * s, marble);
-    ctx.fillStyle = marble; ctx.beginPath(); ctx.arc(x, base - 14.6 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  } else {
-    // a classic pose: head bowed, one arm across the chest
-    part(x - 6 * s, base - 10.5 * s, 2.4 * s, 7 * s, 1.2 * s, shade);
-    part(x - 3.8 * s, base - 11 * s, 7.6 * s, 10 * s, 3.6 * s, marble);
-    part(x - 2.5 * s, base - 8.5 * s, 7.4 * s, 2.3 * s, 1.1 * s, shade);
-    ctx.fillStyle = marble; ctx.beginPath(); ctx.arc(x + 1.3 * s, base - 13.8 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-  }
+  ctx.beginPath(); ctx.ellipse(x, shadowY, 9, 4, 0, 0, Math.PI * 2); ctx.fill();
+  const frame = running ? Math.floor(statue.phase / 1.6) % 4 : 0;
+  const sprite = statueSprite(running ? 'run' : 'still', frame, statueHovered);
+  const w = SPR_W * STATUE_PX, h = SPR_H * STATUE_PX;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sprite, x - w / 2, base - h + STATUE_PX * (running ? 1 : 2.5), w, h);
+  ctx.imageSmoothingEnabled = true;
 }
 function drawFurniture(b) {
   if (b.kind === 'pedestal') return drawBox(b, '#f1ede6', '#d6cfc3', 'rgba(60, 40, 20, .35)');
+  if (b.kind === 'plaque') {
+    drawBox(b, '#fdfbf6', '#ece5d9', 'rgba(60, 40, 20, .35)');
+    // the museum's name engraved on the front, sized to fit
+    const yFront = sy(b.y + b.d, b.h), yBase = sy(b.y + b.d);
+    let size = 8;
+    do { ctx.font = `600 ${size}px Georgia, serif`; size -= 0.25; }
+    while (ctx.measureText('THE MINIATURE MUSEUM').width + 20 * 1.1 > b.w - 12 && size > 4);
+    ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(70, 52, 38, .85)';
+    drawSpaced('THE MINIATURE MUSEUM', b.x + b.w / 2, (yFront + yBase) / 2 + 0.5, 1.1);
+    return;
+  }
   if (b.kind === 'bench') drawBox(b, '#b08a64', '#8f6c4c', 'rgba(60, 40, 20, .4)');
   else drawBox(b, '#f8f4ec', '#d9cfbf', 'rgba(60, 40, 20, .35)');
 }
@@ -560,7 +655,47 @@ function drawPerson(v) {
   ctx.fillStyle = 'rgba(40, 30, 20, .17)';
   ctx.beginPath(); ctx.ellipse(x, y, 5.5 * s, 2.5 * s, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = v.body; roundRect(x - 3.8 * s, y - (11 + bob) * s, 7.6 * s, 10 * s, 3.6 * s); ctx.fill();
-  ctx.fillStyle = v.skin; ctx.beginPath(); ctx.arc(x, y - (14.6 + bob) * s, 3.4 * s, 0, Math.PI * 2); ctx.fill();
+  const hy = y - (14.6 + bob) * s;
+  ctx.fillStyle = v.skin; ctx.beginPath(); ctx.arc(x, hy, 3.4 * s, 0, Math.PI * 2); ctx.fill();
+  if (v.guard) {
+    ctx.fillStyle = '#1a2236';
+    ctx.beginPath(); ctx.arc(x, hy - 0.6 * s, 3.5 * s, Math.PI, 0); ctx.fill();   // cap
+    ctx.fillRect(x - 4.4 * s, hy - 0.9 * s, 8.8 * s, 1.3 * s);                     // brim
+    ctx.fillStyle = '#e9c46a'; ctx.fillRect(x - 2.4 * s, y - 8.6 * s, 1.4 * s, 1.4 * s); // badge
+  }
+  if (v.photo && v.photo.t < 1.7) {                                                // camera held up
+    ctx.fillStyle = v.skin;
+    ctx.fillRect(x - 3.6 * s, hy - 3.5 * s, 1.4 * s, 4 * s); ctx.fillRect(x + 2.2 * s, hy - 3.5 * s, 1.4 * s, 4 * s);
+    ctx.fillStyle = '#2b2b2b'; roundRect(x - 3 * s, hy - 6.6 * s, 6 * s, 3.4 * s, 0.8 * s); ctx.fill();
+    ctx.fillStyle = '#9aa0a6'; ctx.fillRect(x + 1 * s, hy - 7.4 * s, 1.6 * s, 0.9 * s);
+  }
+}
+function drawOverlays() {
+  // Camera flashes: a burst of light at the camera and on the painting.
+  for (const f of flashes) {
+    const a = Math.max(0, 1 - f.t / FLASH_TIME) ** 0.7;
+    const cx = f.x, cy = sy(f.y) - 22, R = 55;
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+    g.addColorStop(0, `rgba(255, 255, 255, ${a})`); g.addColorStop(0.25, `rgba(255, 253, 240, ${0.7 * a})`); g.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = g; ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+    if (f.painting) {
+      const r = paintingRect(f.painting);
+      ctx.fillStyle = `rgba(255, 255, 255, ${0.7 * a})`;
+      ctx.fillRect(r.x0 - 2, r.y0 - 2, r.x1 - r.x0 + 4, r.y1 - r.y0 + 4);
+    }
+  }
+  // Guards' speech bubbles
+  ctx.font = '600 6.5px system-ui, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  for (const v of people) {
+    if (!v.say) continue;
+    const x = v.x, y = sy(v.y) - 28, w = ctx.measureText(v.say.text).width + 8;
+    ctx.globalAlpha = Math.min(1, v.say.t * 3);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(40, 30, 20, .35)'; ctx.lineWidth = 0.6;
+    roundRect(x - w / 2, y - 5.5, w, 11, 4); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 2, y + 5.4); ctx.lineTo(x, y + 8.5); ctx.lineTo(x + 2, y + 5.4); ctx.fill();
+    ctx.fillStyle = '#b5543c'; ctx.fillText(v.say.text, x, y + 0.3);
+    ctx.globalAlpha = 1;
+  }
 }
 
 let hovered = null;
@@ -583,6 +718,7 @@ function draw() {
   list.push([statue.state === 'run' ? statue.y : Math.max(statue.y, PEDESTAL.y + PEDESTAL.d) + 0.1, 3, drawStatue]);
   list.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   for (const [, , fn] of list) fn();
+  drawOverlays();
 }
 
 // ===== Zooming into a painting =====
@@ -757,6 +893,8 @@ function frame(now) {
   if (zoom.anim) zoom.anim.step(now);
   updatePeople(dt);
   updateStatue(dt);
+  for (const f of flashes) f.t += dt;
+  while (flashes.length && flashes[0].t > FLASH_TIME) flashes.shift();
   draw();
   requestAnimationFrame(frame);
 }
@@ -773,6 +911,7 @@ async function start() {
   hangPaintings();
   buildGuide();
   spawnPeople(cw < 700 ? 45 : 75);
+  spawnGuards();
   requestAnimationFrame(frame);
 }
 start();

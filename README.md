@@ -1,6 +1,6 @@
 # The Miniature Museum
 
-A bird's-eye, dollhouse-style museum. Little visitors wander between the galleries and scatter away from your cursor. Click a painting (or use the Guide) to zoom in and see it full size with its details. Click the statue in the lobby and it runs away, then sneaks back to its pedestal.
+A bird's-eye, dollhouse-style museum. Little visitors wander between the galleries and scatter away from your cursor. Click a painting (or use the Guide) to zoom in and see it full size with its details. Click the statue in the lobby and it runs away (guards give chase), then sneaks back to its pedestal. Now and then a visitor takes a flash photo, and a guard hurries over.
 
 Artworks and images come from the [Art Institute of Chicago API](https://api.artic.edu/docs/) (no key needed). Deployed on Vercel from the `museum` branch.
 
