@@ -10,6 +10,12 @@
   src: url("fonts/PixelifySans.woff2") format("woff2");
   font-display: swap;
 }
+/* Silkscreen: SIL Open Font License (see fonts/Silkscreen-OFL.txt). */
+@font-face {
+  font-family: "Silkscreen";
+  src: url("fonts/Silkscreen.woff2") format("woff2");
+  font-display: swap;
+}
 :root {
   --bg: #e9e2d6;
   --ink: #2e2722;

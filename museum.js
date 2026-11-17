@@ -814,15 +814,17 @@ function drawFloor() {
   }
   // Room names on the floor
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = '600 12px system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(70, 50, 30, .38)';
+  ctx.font = LABEL_FONT;
+  ctx.fillStyle = 'rgba(70, 50, 30, .5)';
   for (const r of ROOMS) {
     const name = r.name || galleries.find((g) => g.id === r.id)?.name;
     if (!name) continue;
     const y = r.id === 'lobby' ? r.y1 - 90 : (r.y0 + r.y1) / 2 + 62;
-    drawSpaced(name.toUpperCase(), (r.x0 + r.x1) / 2, sy(y), 2);
+    drawSpaced(name.toUpperCase(), (r.x0 + r.x1) / 2, sy(y), LABEL_SPACING);
   }
 }
+let LABEL_FONT = '13px Silkscreen, system-ui, sans-serif';   // room names on the floor
+let LABEL_SPACING = 1.5;
 function drawSpaced(text, x, y, spacing) {
   const widths = [...text].map((c) => ctx.measureText(c).width + spacing);
   let cx = x - (widths.reduce((a, b) => a + b, 0) - spacing) / 2;
@@ -1173,7 +1175,7 @@ function step(now) {
 
 async function start() {
   resize();
-  try { await document.fonts.load('20px Pixelta'); } catch { /* falls back to Georgia */ }
+  try { await Promise.all(['20px Pixelta', '12px Silkscreen', '12px "Pixelify Sans"'].map((f) => document.fonts.load(f))); } catch { /* falls back */ }
   window.addEventListener('resize', resize);
   try {
     const data = await (await fetch('data/artworks.json')).json();
