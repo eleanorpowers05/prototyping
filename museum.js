@@ -293,6 +293,40 @@ function collide(v) {
   v.y = Math.max(T + PERSON_R, Math.min(D - T - PERSON_R, v.y));
 }
 
+// If furniture blocks the straight line to a target, return a corner to walk around it.
+function segHitsBox(ax, ay, bx, by, b, m) {
+  const x0 = b.x - m, x1 = b.x + b.w + m, y0 = b.y - m, y1 = b.y + b.d + m;
+  const dx = bx - ax, dy = by - ay;
+  let t0 = 0, t1 = 1;
+  const clip = (p, q) => {
+    if (p === 0) return q >= 0;
+    const r = q / p;
+    if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; }
+    return true;
+  };
+  return clip(-dx, ax - x0) && clip(dx, x1 - ax) && clip(-dy, ay - y0) && clip(dy, y1 - ay) && t0 <= t1;
+}
+function detour(from, to) {
+  for (const b of furniture) {
+    if (!segHitsBox(from.x, from.y, to.x, to.y, b, PERSON_R)) continue;
+    const m = PERSON_R + 8;
+    let best = null, bestLen = Infinity;
+    for (const [cx, cy] of [[b.x - m, b.y - m], [b.x + b.w + m, b.y - m], [b.x - m, b.y + b.d + m], [b.x + b.w + m, b.y + b.d + m]]) {
+      const len = Math.hypot(cx - from.x, cy - from.y) + Math.hypot(to.x - cx, to.y - cy);
+      const clear = !segHitsBox(from.x, from.y, cx, cy, b, PERSON_R - 2);
+      if (len + (clear ? 0 : 1000) < bestLen) { bestLen = len + (clear ? 0 : 1000); best = { x: cx, y: cy, around: true }; }
+    }
+    return best;
+  }
+  return null;
+}
+// Next point to walk toward, inserting a detour around furniture when needed.
+function nextStep(walker) {
+  const t = walker.path[0];
+  if (t && !t.around) { const d = detour(walker, t); if (d) walker.path.unshift(d); }
+  return walker.path[0];
+}
+
 let mouse = null;       // floor position of the cursor
 let flashCooldown = 4;  // seconds until someone may take another flash photo
 const flashes = [];
@@ -321,7 +355,7 @@ function updatePeople(dt) {
       v.wait -= dt;
       if (v.wait <= 0) planNext(v);
     } else if (v.path.length) {
-      const t = v.path[0];
+      const t = nextStep(v);
       const dx = t.x - v.x, dy = t.y - v.y, dist = Math.hypot(dx, dy);
       if (dist < 6) {
         v.path.shift();
@@ -336,7 +370,7 @@ function updatePeople(dt) {
           }
         }
       } else {
-        const pace = v.chasing ? 75 : v.scold ? 110 : v.speed;   // guards hurry when chasing or scolding
+        const pace = v.chasing ? 135 : v.scold ? 110 : v.speed;   // guards hurry when chasing or scolding
         ax += (dx / dist) * pace * 3 - v.vx * 3;
         ay += (dy / dist) * pace * 3 - v.vy * 3;
       }
@@ -353,8 +387,9 @@ function updatePeople(dt) {
 
     // Guards chase the runaway statue, through the galleries, until it's back on its pedestal.
     if (v.guard) {
-      if (statue.state !== 'still') {
+      if (statue.state === 'run') {
         v.chasing = true; v.scold = false;
+        if (statue.catchable && statue.runT > 4 && Math.hypot(statue.x - v.x, statue.y - v.y) < 15) arrestStatue(v);
         v.chaseT = (v.chaseT || 0) - dt;
         if (v.chaseT <= 0) {
           v.chaseT = 0.35;
@@ -363,7 +398,7 @@ function updatePeople(dt) {
           v.wait = 0;
         }
       } else if (v.chasing) {
-        v.chasing = false;              // the statue is home: back to the post
+        v.chasing = false;              // the statue is home or caught: back to the post
         v.path = []; v.wait = rand(0.6, 1.8);
       }
     }
@@ -380,7 +415,7 @@ function updatePeople(dt) {
     if (mouse) {
       const dx = v.x - mouse.x, dy = v.y - mouse.y, d = Math.hypot(dx, dy);
       if (d < REPEL_R) {
-        const f = (1 - d / REPEL_R) ** 1.5 * 1400 * (v.guard ? 0.7 : 1);
+        const f = (1 - d / REPEL_R) ** 1.5 * 1400 * (v.guard ? (v.chasing ? 0.25 : 0.7) : 1);
         const ux = d > 0.01 ? dx / d : rand(-1, 1), uy = d > 0.01 ? dy / d : rand(-1, 1);
         ax += ux * f; ay += uy * f;
         fleeing = true;
@@ -395,7 +430,7 @@ function updatePeople(dt) {
 
     v.vx += ax * dt; v.vy += ay * dt;
     if (fleeing) v.photo = null;
-    const max = fleeing ? 120 : v.chasing ? 75 : v.scold ? 110 : v.speed * 1.3;
+    const max = v.chasing ? 135 : fleeing ? 120 : v.scold ? 110 : v.speed * 1.3;
     const sp = Math.hypot(v.vx, v.vy);
     if (sp > max) { v.vx *= max / sp; v.vy *= max / sp; }
     v.x += v.vx * dt; v.y += v.vy * dt;
@@ -454,12 +489,59 @@ function startHop(from, to, then) {
 }
 function kickStatue() {
   if (statue.state === 'still') {
-    startHop({ ...STATUE_HOME, z: PEDESTAL.h }, { ...STATUE_LANDING, z: 0 }, () => { statue.state = 'run'; planEscape(); });
+    statue.catchable = Math.random() < 0.4;   // some runs end in an arrest
+    startHop({ ...STATUE_HOME, z: PEDESTAL.h }, { ...STATUE_LANDING, z: 0 }, () => { statue.state = 'run'; statue.runT = 0; planEscape(); });
   } else if (statue.state === 'run') {
     planEscape();                            // clicked again mid-run: off it goes somewhere else
   }
 }
+// Caught! The statue shatters into marble chunks, which fade away before it reappears on its pedestal.
+const shards = [];
+function arrestStatue(guard) {
+  guard.say = { text: 'Gotcha!', t: 2.2 };
+  guard.chasing = false; guard.path = []; guard.wait = 2;
+  const sprite = statueSprite('run', Math.floor(statue.phase / 1.6) % 4, false);
+  const px = sprite.getContext('2d').getImageData(0, 0, SPR_W, SPR_H).data;
+  // one chunk per 2x2 block of the sprite
+  for (let y = 0; y < SPR_H; y += 2) for (let x = 0; x < SPR_W; x += 2) {
+    const i = (y * SPR_W + x) * 4;
+    if (px[i + 3] < 200) continue;
+    const ox = (x - SPR_W / 2) * STATUE_PX;
+    shards.push({
+      x: statue.x + ox, y: statue.y + rand(-2, 2), z: (SPR_H - y) * STATUE_PX,
+      vx: ox * rand(3, 6) + rand(-25, 25), vy: rand(-40, 40), vz: rand(30, 110),
+      color: `rgb(${px[i]}, ${px[i + 1]}, ${px[i + 2]})`, size: STATUE_PX * rand(1.6, 2.4),
+    });
+  }
+  statue.state = 'broken';
+  statue.brokenT = 0;
+  statue.vx = statue.vy = 0;
+}
+function updateBroken(dt) {
+  statue.brokenT += dt;
+  for (const p of shards) {
+    p.vz -= 320 * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    if (p.z <= 0) { p.z = 0; p.vz *= -0.35; p.vx *= 0.55; p.vy *= 0.55; }
+  }
+  if (statue.brokenT > 4) {                 // pieces are gone: back on the pedestal
+    shards.length = 0;
+    Object.assign(statue, { ...STATUE_HOME, z: PEDESTAL.h, state: 'still', path: [], appear: 0.6 });
+  }
+}
+function drawShards() {
+  if (!shards.length) return;
+  ctx.globalAlpha = Math.max(0, Math.min(1, 4 - statue.brokenT));   // fade during the last second
+  for (const p of shards) {
+    const x = p.x, y = sy(p.y);
+    ctx.fillStyle = 'rgba(40, 30, 20, .12)'; ctx.fillRect(x - p.size / 2, y - p.size * 0.25, p.size, p.size * 0.5);
+    ctx.fillStyle = p.color; ctx.fillRect(x - p.size / 2, y - p.z - p.size, p.size, p.size);
+  }
+  ctx.globalAlpha = 1;
+}
 function updateStatue(dt) {
+  if (statue.appear > 0) statue.appear = Math.max(0, statue.appear - dt);
+  if (statue.state === 'broken') return updateBroken(dt);
   if (statue.state === 'hop') {
     const h = statue.hop;
     h.t = Math.min(1, h.t + dt / h.dur);
@@ -470,8 +552,12 @@ function updateStatue(dt) {
     return;
   }
   if (statue.state !== 'run') return;
+  statue.runT += dt;
   let ax = 0, ay = 0;
-  const t = statue.path[0];
+  const t = nextStep(statue);
+  // Safety net: if it's barely moving toward a waypoint, give up on that waypoint.
+  statue.slowT = Math.hypot(statue.vx, statue.vy) < 15 ? (statue.slowT || 0) + dt : 0;
+  if (t && statue.slowT > 1.2) { statue.path.shift(); statue.slowT = 0; }
   if (t) {
     const dx = t.x - statue.x, dy = t.y - statue.y, dist = Math.hypot(dx, dy);
     if (dist < 8) statue.path.shift();
@@ -490,7 +576,7 @@ function updateStatue(dt) {
   }
   const before = roomAt(statue.x, statue.y);
   statue.vx += ax * dt; statue.vy += ay * dt;
-  const sp = Math.hypot(statue.vx, statue.vy), max = 140;
+  const sp = Math.hypot(statue.vx, statue.vy), max = statue.catchable ? 110 : 140;
   if (sp > max) { statue.vx *= max / sp; statue.vy *= max / sp; }
   statue.x += statue.vx * dt; statue.y += statue.vy * dt;
   collide(statue);
@@ -635,8 +721,9 @@ function drawPainting(p, hovered) {
 }
 function drawStatue() {
   const x = statue.x, floorY = sy(statue.y);
+  if (statue.state === 'broken') return;
   const running = statue.state === 'run';
-  const bob = running ? Math.abs(Math.sin(statue.phase)) * 2 : 0;
+  const bob = statue.state === 'run' ? Math.abs(Math.sin(statue.phase)) * 2 : 0;
   const base = floorY - statue.z - bob;
   // shadow: on the pedestal top when standing there, on the floor otherwise
   const shadowY = statue.state === 'still' ? floorY - PEDESTAL.h : floorY;
@@ -646,7 +733,9 @@ function drawStatue() {
   const sprite = statueSprite(running ? 'run' : 'still', frame, statueHovered);
   const w = SPR_W * STATUE_PX, h = SPR_H * STATUE_PX;
   ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = 1 - (statue.appear || 0) / 0.6;      // fades in when it reappears
   ctx.drawImage(sprite, x - w / 2, base - h + STATUE_PX * (running ? 1 : 2.5), w, h);
+  ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true;
 }
 function drawFurniture(b) {
@@ -694,6 +783,7 @@ function drawPerson(v) {
   }
 }
 function drawOverlays() {
+  drawShards();
   // Camera flashes: a burst of light at the camera and on the painting.
   for (const f of flashes) {
     const a = Math.max(0, 1 - f.t / FLASH_TIME) ** 0.7;
