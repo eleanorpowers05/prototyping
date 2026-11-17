@@ -25,7 +25,6 @@ const DOORS = [
   ['oldmasters', 'modern', 205, ROW, 'h'],
   ['impressionism', 'lobby', 775, ROW, 'h'],
   ['okeeffe', 'japanese', 1145, ROW, 'h'],
-  ['okeeffe', 'american', 1455, ROW, 'h'],
   ['oldmasters', 'impressionism', 400, 215, 'v'],
   ['impressionism', 'okeeffe', 1000, 215, 'v'],
   ['modern', 'lobby', 560, 655, 'v'],
@@ -111,17 +110,38 @@ function hangPaintings() {
     for (const [g0, g1] of gapsFor('h', room.y0 === 0 ? -1 : ROW)) {
       segs = segs.flatMap(([a, b]) => (g1 <= a || g0 >= b ? [[a, b]] : [[a, g0 - 12], [g1 + 12, b]].filter(([p, q]) => q - p > 20)));
     }
-    const items = g.works.map((w) => {
+    // Split the paintings across the wall stretches (trying every order and split) and keep the
+    // arrangement that lets them stay biggest, leaving at least MIN_GAP around each.
+    const MIN_GAP = 8;
+    const base = g.works.map((w) => {
       const h = Math.min(H - 14, 26 * w.scale);
       return { w, h, width: h * w.aspect };
     });
-    const total = items.reduce((n, i) => n + i.width, 0);
-    const avail = segs.reduce((n, [a, b]) => n + (b - a), 0);
-    const gap = Math.max(10, (avail - total) / (items.length + 1));
-    let si = 0, x = segs[0][0] + gap;
-    for (const it of items) {
-      while (si < segs.length && x + it.width > segs[si][1]) { si++; if (segs[si]) x = segs[si][0] + gap / 2; }
-      if (si >= segs.length) { si = segs.length - 1; x = segs[si][1] - it.width; }
+    let best = { fit: -1, groups: null };
+    const tryGroups = (groups) => {
+      let fit = 1;
+      groups.forEach((list, si) => {
+        if (!list.length) return;
+        const room = segs[si][1] - segs[si][0] - MIN_GAP * (list.length + 1);
+        fit = Math.min(fit, room / list.reduce((n, it) => n + it.width, 0));
+      });
+      if (fit > best.fit + 1e-6) best = { fit, groups };
+    };
+    const splits = (list, s) => (s === 1 ? [[list]] :
+      Array.from({ length: list.length + 1 }, (_, i) => splits(list.slice(i), s - 1).map((rest) => [list.slice(0, i), ...rest])).flat());
+    const perms = (list) => (list.length <= 1 ? [list] : list.flatMap((x, i) => perms([...list.slice(0, i), ...list.slice(i + 1)]).map((p) => [x, ...p])));
+    for (const order of base.length <= 6 ? perms(base) : [base]) for (const groups of splits(order, segs.length)) tryGroups(groups);
+    const fit = Math.max(0.2, best.fit);
+    const groups = best.groups.map((list) => list.map((it) => ({ ...it, h: it.h * fit, width: it.width * fit })));
+    // Space each stretch's paintings evenly.
+    const placed = [];
+    groups.forEach((list, si) => {
+      const [a, b] = segs[si];
+      const gap = (b - a - list.reduce((n, it) => n + it.width, 0)) / (list.length + 1);
+      let x = a + gap;
+      for (const it of list) { placed.push({ it, x }); x += it.width + gap; }
+    });
+    for (const { it, x } of placed) {
       const zc = H * 0.54;
       const p = {
         ...it.w, gallery: g, room, faceY,
@@ -135,7 +155,6 @@ function hangPaintings() {
       if (tiny && tiny.complete && tiny.naturalWidth) p.pixel = pixelate(tiny, cols, rows);
       loadImage(`images/${p.id}.jpg`, (img) => { p.pixel = pixelate(img, cols, rows); });
       paintings.push(p);
-      x += it.width + gap;
     }
   }
 }
