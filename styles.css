@@ -1,3 +1,9 @@
+/* Pixelta by Blankids Studio: free for personal use only (commercial use needs a license). */
+@font-face {
+  font-family: "Pixelta";
+  src: url("fonts/Pixelta.ttf") format("truetype");
+  font-display: swap;
+}
 :root {
   --bg: #e9e2d6;
   --ink: #2e2722;
@@ -16,7 +22,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 a { color: var(--accent); }
 
 .hud { position: fixed; top: 16px; left: 20px; pointer-events: none; }
-.hud h1 { margin: 0; font: 600 20px/1.2 Georgia, "Times New Roman", serif; letter-spacing: .01em; }
+.hud h1 { margin: 0; font: 400 30px/1.1 "Pixelta", Georgia, serif; letter-spacing: .01em; }
 .hint { margin: 4px 0 0; color: var(--muted); font-size: 13px; transition: opacity .6s; }
 
 .guide-btn {
@@ -79,7 +85,7 @@ a { color: var(--accent); }
 .v-nav button { padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: #fffdf9; }
 
 @media (max-width: 800px) {
-  .hud h1 { font-size: 17px; }
+  .hud h1 { font-size: 22px; }
   .hint { max-width: 60vw; }
   .viewer { padding: 64px 16px 32px; }
   .v-inner { grid-template-columns: 1fr; gap: 20px; }
