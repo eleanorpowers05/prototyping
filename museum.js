@@ -206,11 +206,24 @@ function randomSpot(room) {
   }
   return { x: (room.x0 + room.x1) / 2, y: (room.y0 + room.y1) / 2 - 40 };
 }
+// Crowd favorites draw bigger crowds.
+const FAVORITES = new Set([27992, 111628, 24645, 16568, 80607]);
+const weightOf = (p) => (FAVORITES.has(p.id) ? 10 : 1);
+function weightedPick(items, weight) {
+  let r = Math.random() * items.reduce((n, it) => n + weight(it), 0);
+  for (const it of items) { r -= weight(it); if (r <= 0) return it; }
+  return items[items.length - 1];
+}
 function viewingSpot(room) {
   const options = paintings.filter((p) => p.room === room);
   if (!options.length) return randomSpot(room);
-  const p = pick(options);
-  return { x: p.cx + rand(-0.4, 0.4) * (p.x1 - p.x0) + rand(-8, 8), y: p.faceY + rand(28, 70), facing: p };
+  const p = weightedPick(options, weightOf);
+  const spread = FAVORITES.has(p.id) ? 0.8 : 0.4, depth = FAVORITES.has(p.id) ? 95 : 70;
+  for (let i = 0; i < 8; i++) {
+    const spot = { x: p.cx + rand(-spread, spread) * (p.x1 - p.x0) + rand(-8, 8), y: p.faceY + rand(28, depth), facing: p };
+    if (!hitsSolid(spot.x, spot.y, PERSON_R + 3) && roomAt(spot.x, spot.y) === room) return spot;
+  }
+  return { x: p.cx, y: p.faceY + 40, facing: p };
 }
 // A point just inside room r next to door d, so walkers line up before passing through.
 const inward = (d, r) => (d.o === 'h' ? { x: d.x, y: d.y + (r.y0 < d.y ? -26 : 26) } : { x: d.x + (r.x0 < d.x ? -26 : 26), y: d.y });
@@ -225,7 +238,8 @@ function planNext(v) {
   if (!room) { v.path.push({ x: LOBBY_X, y: 760 }); return; }
   const doors = DOORS.filter((d) => d.a === room.id || d.b === room.id);
   if (doors.length && Math.random() < 0.28) {
-    const d = pick(doors);
+    // rooms with crowd favorites are a little more tempting
+    const d = weightedPick(doors, (dr) => (paintings.some((p) => p.room.id === (dr.a === room.id ? dr.b : dr.a) && FAVORITES.has(p.id)) ? 2 : 1));
     const next = roomById[d.a === room.id ? d.b : d.a];
     v.path.push(inward(d, room), { x: d.x, y: d.y }, inward(d, next));
     const dest = v.guard || next.id === 'lobby' || Math.random() < 0.35 ? randomSpot(next) : viewingSpot(next);
@@ -255,16 +269,76 @@ function spawnGuards() {
     });
   }
 }
+const HAIR_COLORS = ['#2b1d14', '#3b2a1e', '#5a3a22', '#8a5a2b', '#d9b46a', '#a0522d', '#9a9a9a', '#1a1a1a'];
+function randomHair() {
+  const r = Math.random();
+  const style = r < 0.45 ? 'short' : r < 0.75 ? 'long' : r < 0.85 ? 'bun' : 'bald';
+  return { style, color: pick(HAIR_COLORS) };
+}
+function makePerson(spot, extra = {}) {
+  return {
+    x: spot.x, y: spot.y, vx: 0, vy: 0, path: [], wait: rand(0, 6), speed: rand(16, 28), phase: rand(0, 6),
+    body: pick(BODY), skin: pick(SKIN), size: rand(0.9, 1.1), hair: randomHair(), ...extra,
+  };
+}
+function startSpot(room) { return Math.random() < 0.5 ? viewingSpot(room) : randomSpot(room); }
+// A group: the leader wanders like anyone else, the others follow and stand beside them.
+const SLOTS = [{ dx: 11, dy: 2 }, { dx: -11, dy: 3 }, { dx: 6, dy: 12 }, { dx: -6, dy: 13 }];
+function addGroup(room, members) {
+  const s = startSpot(room);
+  const leader = makePerson(s, { ...members[0], speed: rand(16, 20), trail: [], trailBase: 0 });
+  people.push(leader);
+  members.slice(1).forEach((m, i) => {
+    people.push(makePerson({ x: s.x + SLOTS[i].dx, y: s.y + SLOTS[i].dy }, { ...m, leader, slot: SLOTS[i], lag: 3 + i * 2, ti: 0 }));
+  });
+}
 function spawnPeople(n) {
-  const rooms = ROOMS;
-  for (let i = 0; i < n; i++) {
-    const room = rooms[i % rooms.length];
-    const s = Math.random() < 0.5 ? viewingSpot(room) : randomSpot(room);
-    people.push({
-      x: s.x, y: s.y, vx: 0, vy: 0, path: [], wait: rand(0, 6), speed: rand(16, 28), phase: rand(0, 6),
-      body: pick(BODY), skin: pick(SKIN), size: rand(0.9, 1.1),
-    });
+  // The couple: a girl with brown hair and a boy with blonde hair.
+  addGroup(roomById.impressionism, [
+    { skin: '#f3d9c4', hair: { style: 'long', color: '#6b4426' }, body: '#e5989b', size: 0.97 },
+    { skin: '#f1d3bd', hair: { style: 'short', color: '#e3c47b' }, body: '#457b9d', size: 1.05 },
+  ]);
+  // Families: one or two adults with one or two smaller children.
+  const familyRooms = ['okeeffe', 'modern', 'japanese', 'american', 'oldmasters'];
+  const families = n < 60 ? 2 : 5;
+  let count = 2;
+  for (let f = 0; f < families; f++) {
+    const skin = pick(SKIN), hairColor = pick(HAIR_COLORS.slice(0, 6));
+    const members = [{ skin, hair: randomHair() }];
+    if (Math.random() < 0.7) members.push({ skin: Math.random() < 0.6 ? skin : pick(SKIN), hair: randomHair() });
+    const kids = Math.random() < 0.5 ? 1 : 2;
+    for (let k = 0; k < kids; k++) members.push({ skin, size: rand(0.6, 0.7), hair: { style: pick(['short', 'long', 'bun']), color: hairColor } });
+    addGroup(roomById[familyRooms[f % familyRooms.length]], members);
+    count += members.length;
   }
+  // Everyone else, spread across the rooms.
+  for (let i = 0; count < n; i++, count++) people.push(makePerson(startSpot(ROOMS[i % ROOMS.length])));
+}
+// Followers walk in the leader's footsteps (so they use the same doorways), then stand beside them.
+function updateFollower(v, dt) {
+  const L = v.leader;
+  const tr = L.trail;
+  const close = roomAt(v.x, v.y) === roomAt(L.x, L.y) && Math.hypot(L.x - v.x, L.y - v.y) < 40;
+  let target;
+  if (close) {
+    target = { x: L.x + v.slot.dx, y: L.y + v.slot.dy };
+    v.ti = L.trailBase + Math.max(0, tr.length - v.lag);
+  } else {
+    if (v.ti < L.trailBase) v.ti = L.trailBase;
+    const limit = L.trailBase + Math.max(0, tr.length - v.lag);
+    let p = tr[v.ti - L.trailBase];
+    while (p && v.ti < limit && Math.hypot(p.x - v.x, p.y - v.y) < 8) { v.ti++; p = tr[v.ti - L.trailBase]; }
+    target = p || { x: L.x, y: L.y };
+  }
+  const dx = target.x - v.x, dy = target.y - v.y, d = Math.hypot(dx, dy);
+  const pace = d > 25 ? L.speed * 1.6 : L.speed;
+  if (d > 3) return [(dx / d) * pace * 3 - v.vx * 3, (dy / d) * pace * 3 - v.vy * 3];
+  return [-v.vx * 4, -v.vy * 4];
+}
+function recordTrail(L) {
+  const last = L.trail[L.trail.length - 1];
+  if (!last || Math.hypot(last.x - L.x, last.y - L.y) > 6) L.trail.push({ x: L.x, y: L.y });
+  if (L.trail.length > 200) { L.trail.shift(); L.trailBase++; }
 }
 
 function hitsSolid(x, y, r) {
@@ -306,15 +380,24 @@ function segHitsBox(ax, ay, bx, by, b, m) {
   };
   return clip(-dx, ax - x0) && clip(dx, x1 - ax) && clip(-dy, ay - y0) && clip(dy, y1 - ay) && t0 <= t1;
 }
+// Returns a list of corners to walk around the first piece of furniture in the way (or null).
 function detour(from, to) {
   for (const b of furniture) {
     if (!segHitsBox(from.x, from.y, to.x, to.y, b, PERSON_R)) continue;
     const m = PERSON_R + 8;
+    // corners in order around the box, so neighbours share an edge
+    const C = [[b.x - m, b.y - m], [b.x + b.w + m, b.y - m], [b.x + b.w + m, b.y + b.d + m], [b.x - m, b.y + b.d + m]]
+      .map(([x, y]) => ({ x, y, around: true }));
+    const clear = (a, c) => !segHitsBox(a.x, a.y, c.x, c.y, b, PERSON_R - 2);
+    const len = (...pts) => pts.slice(1).reduce((n, q, i) => n + Math.hypot(q.x - pts[i].x, q.y - pts[i].y), 0);
+    const away = (c) => Math.hypot(c.x - from.x, c.y - from.y) > 10;   // not the corner we're standing at
     let best = null, bestLen = Infinity;
-    for (const [cx, cy] of [[b.x - m, b.y - m], [b.x + b.w + m, b.y - m], [b.x - m, b.y + b.d + m], [b.x + b.w + m, b.y + b.d + m]]) {
-      const len = Math.hypot(cx - from.x, cy - from.y) + Math.hypot(to.x - cx, to.y - cy);
-      const clear = !segHitsBox(from.x, from.y, cx, cy, b, PERSON_R - 2);
-      if (len + (clear ? 0 : 1000) < bestLen) { bestLen = len + (clear ? 0 : 1000); best = { x: cx, y: cy, around: true }; }
+    for (const c of C) {
+      if (clear(from, c) && clear(c, to) && away(c) && len(from, c, to) < bestLen) { best = [c]; bestLen = len(from, c, to); }
+    }
+    for (let i = 0; i < 4; i++) for (const j of [(i + 1) % 4, (i + 3) % 4]) {
+      const c1 = C[i], c2 = C[j];
+      if (clear(from, c1) && clear(c2, to) && len(from, c1, c2, to) < bestLen) { best = [c1, c2]; bestLen = len(from, c1, c2, to); }
     }
     return best;
   }
@@ -326,7 +409,7 @@ function nextStep(walker) {
   const P = walker.path;
   while (P.length > 1 && !P[0].around && Math.hypot(walker.x - P[1].x, walker.y - P[1].y) < Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y)) P.shift();
   const t = walker.path[0];
-  if (t && !t.around) { const d = detour(walker, t); if (d) walker.path.unshift(d); }
+  if (t && !t.around) { const d = detour(walker, t); if (d) walker.path.unshift(...d); }
   return walker.path[0];
 }
 
@@ -352,6 +435,10 @@ function updatePeople(dt) {
   for (const v of people) {
     let ax = 0, ay = 0;
     if (v.say && (v.say.t -= dt) <= 0) v.say = null;
+    if (v.trail) recordTrail(v);
+    if (v.leader) {
+      [ax, ay] = updateFollower(v, dt);
+    } else {
     const startRoom = roomAt(v.x, v.y);
 
     if (v.wait > 0) {
@@ -363,7 +450,7 @@ function updatePeople(dt) {
       if (dist < (v.path.length > 1 ? 12 : 6)) {   // pass through in-between points without stopping
         v.path.shift();
         if (!v.path.length) {
-          v.wait = v.guard ? (v.chasing ? 0 : rand(6, 14)) : rand(2, 9);
+          v.wait = v.guard ? (v.chasing ? 0 : rand(6, 14)) : t.facing && FAVORITES.has(t.facing.id) ? rand(8, 18) : rand(2, 9);
           if (v.scold) { v.scold = false; v.say = { text: 'No flash!', t: 2.4 }; v.wait = 3; }  // then planNext walks them back
           // Now and then, someone looking at a painting takes a flash photo.
           if (!v.guard && t.facing && flashCooldown <= 0 && Math.random() < 0.3) {
@@ -381,6 +468,11 @@ function updatePeople(dt) {
       planNext(v);
     }
     if (v.wait > 0 || !v.path.length) { ax -= v.vx * 4; ay -= v.vy * 4; }
+    }
+
+    // Backup: if someone has somewhere to go but hasn't moved for a while, pick something new.
+    v.stuckT = v.wait <= 0 && v.path.length && Math.hypot(v.vx, v.vy) < 6 ? (v.stuckT || 0) + dt : 0;
+    if (v.stuckT > 2.5) { v.stuckT = 0; v.path = []; v.wait = rand(0.3, 1); }
 
     if (v.photo) {
       v.photo.t += dt;
@@ -392,7 +484,7 @@ function updatePeople(dt) {
     if (v.guard) {
       if (statue.state === 'run') {
         v.chasing = true; v.scold = false;
-        if (statue.catchable && statue.runT > 4 && Math.hypot(statue.x - v.x, statue.y - v.y) < 15) arrestStatue(v);
+        if (statue.runT > 4 && Math.hypot(statue.x - v.x, statue.y - v.y) < 14) arrestStatue(v);
         v.chaseT = (v.chaseT || 0) - dt;
         if (v.chaseT <= 0) {
           v.chaseT = 0.35;
@@ -492,7 +584,6 @@ function startHop(from, to, then) {
 }
 function kickStatue() {
   if (statue.state === 'still') {
-    statue.catchable = Math.random() < 0.4;   // some runs end in an arrest
     startHop({ ...STATUE_HOME, z: PEDESTAL.h }, { ...STATUE_LANDING, z: 0 }, () => { statue.state = 'run'; statue.runT = 0; planEscape(); });
   } else if (statue.state === 'run') {
     planEscape();                            // clicked again mid-run: off it goes somewhere else
@@ -572,14 +663,20 @@ function updateStatue(dt) {
   } else {
     statue.path = legTo(roomAt(statue.x, statue.y) || roomById.lobby, roomById.lobby, STATUE_LANDING);
   }
-  // It's shy of the cursor too.
+  // It dodges guards who get close...
+  for (const g of people) {
+    if (!g.guard) continue;
+    const dx = statue.x - g.x, dy = statue.y - g.y, d = Math.hypot(dx, dy);
+    if (d < 45 && d > 0.01) { ax += (dx / d) * 1600 * (1 - d / 45); ay += (dy / d) * 1600 * (1 - d / 45); }
+  }
+  // ...and it's shy of the cursor too.
   if (mouse) {
     const dx = statue.x - mouse.x, dy = statue.y - mouse.y, d = Math.hypot(dx, dy);
     if (d < 50 && d > 0.01) { ax += (dx / d) * 2500 * (1 - d / 50); ay += (dy / d) * 2500 * (1 - d / 50); }
   }
   const before = roomAt(statue.x, statue.y);
   statue.vx += ax * dt; statue.vy += ay * dt;
-  const sp = Math.hypot(statue.vx, statue.vy), max = statue.catchable ? 110 : 140;
+  const sp = Math.hypot(statue.vx, statue.vy), max = 140;
   if (sp > max) { statue.vx *= max / sp; statue.vy *= max / sp; }
   statue.x += statue.vx * dt; statue.y += statue.vy * dt;
   collide(statue);
@@ -771,7 +868,17 @@ function drawPerson(v) {
   ctx.beginPath(); ctx.ellipse(x, y, 5.5 * s, 2.5 * s, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = v.body; roundRect(x - 3.8 * s, y - (11 + bob) * s, 7.6 * s, 10 * s, 3.6 * s); ctx.fill();
   const hy = y - (14.6 + bob) * s;
+  const hair = !v.guard && v.hair && v.hair.style !== 'bald' ? v.hair : null;
+  if (hair && hair.style === 'long') {          // long hair falls over the shoulders
+    ctx.fillStyle = hair.color; roundRect(x - 3.6 * s, hy - 1 * s, 7.2 * s, 6.4 * s, 2.4 * s); ctx.fill();
+  }
   ctx.fillStyle = v.skin; ctx.beginPath(); ctx.arc(x, hy, 3.4 * s, 0, Math.PI * 2); ctx.fill();
+  if (hair) {
+    ctx.fillStyle = hair.color;
+    ctx.beginPath(); ctx.arc(x, hy - 0.2 * s, 3.6 * s, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill();   // top of the head
+    ctx.beginPath(); ctx.ellipse(x, hy - 1.6 * s, 3.5 * s, 2 * s, 0, Math.PI, 0); ctx.fill();
+    if (hair.style === 'bun') { ctx.beginPath(); ctx.arc(x, hy - 4.2 * s, 1.7 * s, 0, Math.PI * 2); ctx.fill(); }
+  }
   if (v.guard) {
     ctx.fillStyle = '#1a2236';
     ctx.beginPath(); ctx.arc(x, hy - 0.6 * s, 3.5 * s, Math.PI, 0); ctx.fill();   // cap
