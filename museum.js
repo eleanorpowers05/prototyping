@@ -322,6 +322,9 @@ function detour(from, to) {
 }
 // Next point to walk toward, inserting a detour around furniture when needed.
 function nextStep(walker) {
+  // Skip waypoints already passed (e.g. a route recalculated while standing in a doorway).
+  const P = walker.path;
+  while (P.length > 1 && !P[0].around && Math.hypot(walker.x - P[1].x, walker.y - P[1].y) < Math.hypot(P[0].x - P[1].x, P[0].y - P[1].y)) P.shift();
   const t = walker.path[0];
   if (t && !t.around) { const d = detour(walker, t); if (d) walker.path.unshift(d); }
   return walker.path[0];
@@ -357,7 +360,7 @@ function updatePeople(dt) {
     } else if (v.path.length) {
       const t = nextStep(v);
       const dx = t.x - v.x, dy = t.y - v.y, dist = Math.hypot(dx, dy);
-      if (dist < 6) {
+      if (dist < (v.path.length > 1 ? 12 : 6)) {   // pass through in-between points without stopping
         v.path.shift();
         if (!v.path.length) {
           v.wait = v.guard ? (v.chasing ? 0 : rand(6, 14)) : rand(2, 9);
@@ -560,7 +563,7 @@ function updateStatue(dt) {
   if (t && statue.slowT > 1.2) { statue.path.shift(); statue.slowT = 0; }
   if (t) {
     const dx = t.x - statue.x, dy = t.y - statue.y, dist = Math.hypot(dx, dy);
-    if (dist < 8) statue.path.shift();
+    if (dist < (statue.path.length > 1 ? 12 : 8)) statue.path.shift();
     else { ax += (dx / dist) * 900 - statue.vx * 6; ay += (dy / dist) * 900 - statue.vy * 6; }
   } else if (Math.hypot(statue.x - STATUE_LANDING.x, statue.y - STATUE_LANDING.y) < 10) {
     statue.vx = statue.vy = 0;
