@@ -2,7 +2,9 @@
 // Run with: node scripts/fetch-artworks.mjs
 // Edit GALLERIES to change which pieces hang in each room. `featured: false` marks filler pieces.
 
-import { writeFile } from 'node:fs/promises';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export const GALLERIES = [
   { id: 'oldmasters', name: 'Old Masters', works: [
@@ -19,6 +21,7 @@ export const GALLERIES = [
     { id: 111628, scale: 1.3 }, { id: 117266, scale: 1.1 }, { id: 102234, scale: 1.2 } ] },
 ];
 
+const UA = 'miniature-museum (personal art website prototype)';
 const FIELDS = ['id', 'title', 'artist_display', 'artist_title', 'date_display', 'medium_display', 'dimensions',
   'description', 'short_description', 'place_of_origin', 'credit_line', 'image_id', 'thumbnail', 'is_public_domain'];
 
@@ -65,3 +68,18 @@ const out = {
 
 await writeFile(new URL('../data/artworks.json', import.meta.url), JSON.stringify(out, null, 1));
 console.log(`Saved ${ids.length} artworks to data/artworks.json`);
+
+// Save each image into images/ so the site serves them itself
+// (the museum's image server doesn't allow other websites to embed them).
+await mkdir(new URL('../images/', import.meta.url), { recursive: true });
+for (const w of out.galleries.flatMap((g) => g.works)) {
+  if (!w.imageId) continue;
+  {
+    // curl is used because the image server refuses Node's built-in fetch, and only the
+    // standard 843px width is allowed (other sizes return 403).
+    const file = fileURLToPath(new URL(`../images/${w.id}.jpg`, import.meta.url));
+    execFileSync('curl', ['-sSf', '--retry', '2', '-o', file, `https://www.artic.edu/iiif/2/${w.imageId}/full/843,/0/default.jpg`]);
+  }
+  process.stdout.write('.');
+}
+console.log(' images saved');

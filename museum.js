@@ -127,23 +127,43 @@ function hangPaintings() {
         ...it.w, gallery: g, room, faceY,
         x0: x, x1: x + it.width, zTop: zc + it.h / 2, zBot: zc - it.h / 2,
         cx: x + it.width / 2, display: shortTitle(it.w.title),
-        thumb: loadImage(it.w.lqip), img: null,
+        pixel: null,
       };
-      if (p.imageId) {
-        const img = new Image();
-        img.onload = () => { p.img = img; };
-        img.src = `https://www.artic.edu/iiif/2/${p.imageId}/full/!300,300/0/default.jpg`;
-      }
+      // Miniatures are drawn as pixel art: one "pixel" is about 2.5 floor units.
+      const cols = Math.max(6, Math.round(it.width / 2.5)), rows = Math.max(6, Math.round(it.h / 2.5));
+      const tiny = loadImage(p.lqip, (img) => { if (!p.pixel) p.pixel = pixelate(img, cols, rows); });
+      if (tiny && tiny.complete && tiny.naturalWidth) p.pixel = pixelate(tiny, cols, rows);
+      loadImage(`images/${p.id}.jpg`, (img) => { p.pixel = pixelate(img, cols, rows); });
       paintings.push(p);
       x += it.width + gap;
     }
   }
 }
-function loadImage(src) {
+function loadImage(src, onload) {
   if (!src) return null;
   const img = new Image();
+  if (onload) img.onload = () => onload(img);
   img.src = src;
   return img;
+}
+// Shrink an image to a small grid (averaging in steps for cleaner colors) for blocky pixel art.
+function pixelate(img, cols, rows) {
+  let src = img, w = img.naturalWidth, h = img.naturalHeight;
+  while (w / 2 > cols * 2 && h / 2 > rows * 2) {
+    w = Math.round(w / 2); h = Math.round(h / 2);
+    const step = document.createElement('canvas');
+    step.width = w; step.height = h;
+    const sctx = step.getContext('2d');
+    sctx.imageSmoothingQuality = 'high';
+    sctx.drawImage(src, 0, 0, w, h);
+    src = step;
+  }
+  const out = document.createElement('canvas');
+  out.width = cols; out.height = rows;
+  const octx = out.getContext('2d');
+  octx.imageSmoothingQuality = 'high';
+  octx.drawImage(src, 0, 0, cols, rows);
+  return out;
 }
 const paintingRect = (p) => ({ x0: p.x0, x1: p.x1, y0: sy(p.faceY, p.zTop), y1: sy(p.faceY, p.zBot) });
 
@@ -361,8 +381,11 @@ function drawPainting(p, hovered) {
   ctx.fillStyle = hovered ? '#b5543c' : '#3a2e25';
   ctx.fillRect(r.x0 - f, r.y0 - f, w + f * 2, h + f * 2);
   ctx.restore();
-  const img = p.img || (p.thumb && p.thumb.complete ? p.thumb : null);
-  if (img) ctx.drawImage(img, r.x0, r.y0, w, h); else { ctx.fillStyle = '#cbbfae'; ctx.fillRect(r.x0, r.y0, w, h); }
+  if (p.pixel) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(p.pixel, r.x0, r.y0, w, h);
+    ctx.imageSmoothingEnabled = true;
+  } else { ctx.fillStyle = '#cbbfae'; ctx.fillRect(r.x0, r.y0, w, h); }
   if (hovered) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8; ctx.strokeRect(r.x0 - f - 1.2, r.y0 - f - 1.2, w + f * 2 + 2.4, h + f * 2 + 2.4); }
 }
 function drawFurniture(b) {
@@ -474,8 +497,7 @@ function showViewer(p) {
   };
   $('v-art').title = '';
   $('v-art').style.backgroundImage = p.lqip ? `url("${p.lqip}")` : '';
-  const size = p.publicDomain ? 1686 : 843;   // the museum serves larger images for public-domain works
-  img.src = p.imageId ? `https://www.artic.edu/iiif/2/${p.imageId}/full/${size},/0/default.jpg` : '';
+  img.src = p.imageId ? `images/${p.id}.jpg` : '';
   viewer.hidden = false;
   viewer.scrollTop = 0;
   requestAnimationFrame(() => viewer.classList.add('show'));

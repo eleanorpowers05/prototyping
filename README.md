@@ -7,6 +7,7 @@ Artworks and images come from the [Art Institute of Chicago API](https://api.art
 ## Files
 - `index.html`, `styles.css`, `museum.js`: the site (no build step). The museum is drawn on a canvas.
 - `data/artworks.json`: saved details for each artwork (title, artist, description, image id).
+- `images/`: each artwork's image (843px wide), saved here because the museum's image server doesn't let other websites embed its images. The map shows them as pixel art; the viewer shows the full image.
 - `scripts/fetch-artworks.mjs`: re-downloads `data/artworks.json`.
 
 ## Changing the art
