@@ -434,12 +434,12 @@ function updatePeople(dt) {
   flashCooldown -= dt;
   for (const v of people) {
     let ax = 0, ay = 0;
+    const startRoom = roomAt(v.x, v.y);
     if (v.say && (v.say.t -= dt) <= 0) v.say = null;
     if (v.trail) recordTrail(v);
     if (v.leader) {
       [ax, ay] = updateFollower(v, dt);
     } else {
-    const startRoom = roomAt(v.x, v.y);
 
     if (v.wait > 0) {
       v.wait -= dt;
@@ -1110,7 +1110,13 @@ canvas.addEventListener('click', (e) => {
 
 // ===== Main loop =====
 let last = performance.now();
+let frameErrorShown = false;
 function frame(now) {
+  // Safety net: an error in one frame is logged, but never stops the animation.
+  try { step(now); } catch (err) { if (!frameErrorShown) { console.error(err); frameErrorShown = true; } }
+  requestAnimationFrame(frame);
+}
+function step(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (zoom.anim) zoom.anim.step(now);
@@ -1119,7 +1125,6 @@ function frame(now) {
   for (const f of flashes) f.t += dt;
   while (flashes.length && flashes[0].t > FLASH_TIME) flashes.shift();
   draw();
-  requestAnimationFrame(frame);
 }
 
 async function start() {
