@@ -64,7 +64,7 @@ for (const r of ROOMS) {
   const bw = Math.min(110, (r.x1 - r.x0) * 0.35);
   furniture.push({ kind: 'bench', x: cx - bw / 2, y: cy - 7, w: bw, d: 14, h: 9 });
 }
-furniture.push({ kind: 'plaque', x: LOBBY_X - 90, y: 494, w: 180, d: 26, h: 22 });
+furniture.push({ kind: 'plaque', x: LOBBY_X - 100, y: 566, w: 200, d: 26, h: 24 });
 const PEDESTAL = { kind: 'pedestal', x: LOBBY_X - 11, y: 690, w: 22, d: 22, h: 14 };
 furniture.push(PEDESTAL);
 const plants = [
@@ -655,11 +655,11 @@ function drawFurniture(b) {
     drawBox(b, '#fdfbf6', '#ece5d9', 'rgba(60, 40, 20, .35)');
     // the museum's name engraved on the front, sized to fit
     const yFront = sy(b.y + b.d, b.h), yBase = sy(b.y + b.d);
-    let size = 13;
-    do { ctx.font = `600 ${size}px Georgia, serif`; size -= 0.25; }
-    while (ctx.measureText('THE MINIATURE MUSEUM').width + 20 * 1.4 > b.w - 16 && size > 4);
+    let size = 20;
+    do { ctx.font = `${size}px Pixelta, Georgia, serif`; size -= 0.25; }
+    while (ctx.measureText('The Miniature Museum').width + 20 * 0.6 > b.w - 18 && size > 4);
     ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(70, 52, 38, .85)';
-    drawSpaced('THE MINIATURE MUSEUM', b.x + b.w / 2, (yFront + yBase) / 2 + 0.5, 1.4);
+    drawSpaced('The Miniature Museum', b.x + b.w / 2, (yFront + yBase) / 2 + 1, 0.6);
     return;
   }
   if (b.kind === 'bench') drawBox(b, '#b08a64', '#8f6c4c', 'rgba(60, 40, 20, .4)');
@@ -924,6 +924,7 @@ function frame(now) {
 
 async function start() {
   resize();
+  try { await document.fonts.load('20px Pixelta'); } catch { /* falls back to Georgia */ }
   window.addEventListener('resize', resize);
   try {
     const data = await (await fetch('data/artworks.json')).json();
