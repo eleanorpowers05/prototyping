@@ -275,6 +275,45 @@ function randomHair() {
   const style = r < 0.45 ? 'short' : r < 0.75 ? 'long' : r < 0.85 ? 'bun' : 'bald';
   return { style, color: pick(HAIR_COLORS) };
 }
+// Every now and then the couple stops for a kiss, and a little pixel heart floats up between them.
+let couple = null;
+const hearts = [];
+function updateCouple(dt) {
+  if (!couple) return;
+  const { girl, boy } = couple;
+  for (const h of hearts) h.t += dt;
+  while (hearts.length && hearts[0].t > 2.2) hearts.shift();
+  if (couple.kissT > 0) {
+    couple.kissT -= dt;
+    if (couple.kissT <= 0) girl.kissing = boy.kissing = false;
+    return;
+  }
+  couple.cooldown -= dt;
+  const still = (v) => Math.hypot(v.vx, v.vy) < 8;
+  if (couple.cooldown <= 0 && girl.wait > 2.2 && still(girl) && still(boy) && Math.hypot(girl.x - boy.x, girl.y - boy.y) < 18) {
+    couple.kissT = 1.8;
+    couple.cooldown = rand(15, 30);
+    girl.wait = Math.max(girl.wait, 2.2);
+    girl.kissing = boy.kissing = true;
+    girl.kissDir = Math.sign(boy.x - girl.x) || 1;
+    boy.kissDir = -girl.kissDir;
+    setTimeout(() => hearts.push({ x: (girl.x + boy.x) / 2, y: (girl.y + boy.y) / 2, t: 0 }), 450);
+  }
+}
+const HEART = ['.XX.XX.', 'XXXXXXX', 'XXXXXXX', '.XXXXX.', '..XXX..', '...X...'];
+function drawHearts() {
+  for (const h of hearts) {
+    const px = 1.4 * Math.min(1, 0.4 + h.t * 3);                 // pops in
+    const x0 = h.x - (7 * px) / 2, y0 = sy(h.y) - 30 - h.t * 14;   // floats up
+    ctx.globalAlpha = Math.max(0, Math.min(1, (2.2 - h.t) / 0.8));  // then fades
+    HEART.forEach((row, r) => [...row].forEach((c, k) => {
+      if (c !== 'X') return;
+      ctx.fillStyle = r === 1 && k === 1 ? '#ffd6d9' : '#e5484d';
+      ctx.fillRect(x0 + k * px, y0 + r * px, px + 0.05, px + 0.05);
+    }));
+    ctx.globalAlpha = 1;
+  }
+}
 function makePerson(spot, extra = {}) {
   return {
     x: spot.x, y: spot.y, vx: 0, vy: 0, path: [], wait: rand(0, 6), speed: rand(16, 28), phase: rand(0, 6),
@@ -298,6 +337,7 @@ function spawnPeople(n) {
     { skin: '#f3d9c4', hair: { style: 'long', color: '#6b4426' }, body: '#e5989b', size: 0.97 },
     { skin: '#f1d3bd', hair: { style: 'short', color: '#e3c47b' }, body: '#457b9d', size: 1.05 },
   ]);
+  couple = { girl: people[people.length - 2], boy: people[people.length - 1], cooldown: rand(6, 12), kissT: 0 };
   // Families: one or two adults with one or two smaller children.
   const familyRooms = ['okeeffe', 'modern', 'japanese', 'american', 'oldmasters'];
   const families = n < 60 ? 2 : 5;
@@ -321,7 +361,8 @@ function updateFollower(v, dt) {
   const close = roomAt(v.x, v.y) === roomAt(L.x, L.y) && Math.hypot(L.x - v.x, L.y - v.y) < 40;
   let target;
   if (close) {
-    target = { x: L.x + v.slot.dx, y: L.y + v.slot.dy };
+    const slot = v.kissing ? { dx: 6.5 * Math.sign(v.slot.dx), dy: 0 } : v.slot;
+    target = { x: L.x + slot.dx, y: L.y + slot.dy };
     v.ti = L.trailBase + Math.max(0, tr.length - v.lag);
   } else {
     if (v.ti < L.trailBase) v.ti = L.trailBase;
@@ -868,16 +909,17 @@ function drawPerson(v) {
   ctx.beginPath(); ctx.ellipse(x, y, 5.5 * s, 2.5 * s, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = v.body; roundRect(x - 3.8 * s, y - (11 + bob) * s, 7.6 * s, 10 * s, 3.6 * s); ctx.fill();
   const hy = y - (14.6 + bob) * s;
+  const hx = x + (v.kissing ? v.kissDir * 1.4 * s : 0);           // lean in for a kiss
   const hair = !v.guard && v.hair && v.hair.style !== 'bald' ? v.hair : null;
   if (hair && hair.style === 'long') {          // long hair falls over the shoulders
-    ctx.fillStyle = hair.color; roundRect(x - 3.6 * s, hy - 1 * s, 7.2 * s, 6.4 * s, 2.4 * s); ctx.fill();
+    ctx.fillStyle = hair.color; roundRect(hx - 3.6 * s, hy - 1 * s, 7.2 * s, 6.4 * s, 2.4 * s); ctx.fill();
   }
-  ctx.fillStyle = v.skin; ctx.beginPath(); ctx.arc(x, hy, 3.4 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = v.skin; ctx.beginPath(); ctx.arc(hx, hy, 3.4 * s, 0, Math.PI * 2); ctx.fill();
   if (hair) {
     ctx.fillStyle = hair.color;
-    ctx.beginPath(); ctx.arc(x, hy - 0.2 * s, 3.6 * s, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill();   // top of the head
-    ctx.beginPath(); ctx.ellipse(x, hy - 1.6 * s, 3.5 * s, 2 * s, 0, Math.PI, 0); ctx.fill();
-    if (hair.style === 'bun') { ctx.beginPath(); ctx.arc(x, hy - 4.2 * s, 1.7 * s, 0, Math.PI * 2); ctx.fill(); }
+    ctx.beginPath(); ctx.arc(hx, hy - 0.2 * s, 3.6 * s, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill();   // top of the head
+    ctx.beginPath(); ctx.ellipse(hx, hy - 1.6 * s, 3.5 * s, 2 * s, 0, Math.PI, 0); ctx.fill();
+    if (hair.style === 'bun') { ctx.beginPath(); ctx.arc(hx, hy - 4.2 * s, 1.7 * s, 0, Math.PI * 2); ctx.fill(); }
   }
   if (v.guard) {
     ctx.fillStyle = '#1a2236';
@@ -894,6 +936,7 @@ function drawPerson(v) {
 }
 function drawOverlays() {
   drawShards();
+  drawHearts();
   // Camera flashes: a burst of light at the camera and on the painting.
   for (const f of flashes) {
     const a = Math.max(0, 1 - f.t / FLASH_TIME) ** 0.7;
@@ -1122,6 +1165,7 @@ function step(now) {
   if (zoom.anim) zoom.anim.step(now);
   updatePeople(dt);
   updateStatue(dt);
+  updateCouple(dt);
   for (const f of flashes) f.t += dt;
   while (flashes.length && flashes[0].t > FLASH_TIME) flashes.shift();
   draw();
