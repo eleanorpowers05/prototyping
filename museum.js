@@ -64,7 +64,7 @@ for (const r of ROOMS) {
   const bw = Math.min(110, (r.x1 - r.x0) * 0.35);
   furniture.push({ kind: 'bench', x: cx - bw / 2, y: cy - 7, w: bw, d: 14, h: 9 });
 }
-furniture.push({ kind: 'plaque', x: LOBBY_X - 62, y: 500, w: 124, d: 20, h: 14 });
+furniture.push({ kind: 'plaque', x: LOBBY_X - 90, y: 494, w: 180, d: 26, h: 22 });
 const PEDESTAL = { kind: 'pedestal', x: LOBBY_X - 11, y: 690, w: 22, d: 22, h: 14 };
 furniture.push(PEDESTAL);
 const plants = [
@@ -217,6 +217,11 @@ const inward = (d, r) => (d.o === 'h' ? { x: d.x, y: d.y + (r.y0 < d.y ? -26 : 2
 function planNext(v) {
   const room = roomAt(v.x, v.y);
   v.path = [];
+  if (v.guard) {                        // guards return to their post and stand there
+    if (Math.hypot(v.x - v.post.x, v.y - v.post.y) > 8) v.path = legTo(room || roomById.lobby, roomAt(v.post.x, v.post.y), v.post);
+    else v.wait = rand(8, 20);
+    return;
+  }
   if (!room) { v.path.push({ x: LOBBY_X, y: 760 }); return; }
   const doors = DOORS.filter((d) => d.a === room.id || d.b === room.id);
   if (doors.length && Math.random() < 0.28) {
@@ -229,13 +234,24 @@ function planNext(v) {
     v.path.push(v.guard || room.id === 'lobby' || Math.random() < 0.35 ? randomSpot(room) : viewingSpot(room));
   }
 }
-const GUARD_ROOMS = ['lobby', 'impressionism', 'okeeffe', 'american'];
+// Guards stand beside doorways: [roomA, roomB, which room's side to stand on]. Plus one at the entrance.
+const GUARD_DOORS = [['impressionism', 'lobby', 'lobby'], ['impressionism', 'okeeffe', 'impressionism'],
+  ['modern', 'lobby', 'modern'], ['japanese', 'american', 'american']];
+function guardPosts() {
+  const posts = GUARD_DOORS.map(([a, b, side]) => {
+    const d = DOORS.find((x) => (x.a === a && x.b === b) || (x.a === b && x.b === a));
+    const r = roomById[side];
+    if (d.o === 'h') return { x: d.x + DOOR_W / 2 + 11, y: d.y + (r.y0 < d.y ? -16 : 16) };
+    return { x: d.x + (r.x0 < d.x ? -16 : 16), y: d.y - DOOR_W / 2 - 11 };
+  });
+  posts.push({ x: ENTRANCE.x1 + 14, y: D - 30 });
+  return posts;
+}
 function spawnGuards() {
-  for (const id of GUARD_ROOMS) {
-    const s = randomSpot(roomById[id]);
+  for (const post of guardPosts()) {
     people.push({
-      x: s.x, y: s.y, vx: 0, vy: 0, path: [], wait: rand(2, 8), speed: rand(13, 17), phase: rand(0, 6),
-      body: '#27324a', skin: pick(SKIN), size: 1.08, guard: true,
+      x: post.x, y: post.y, vx: 0, vy: 0, path: [], wait: rand(2, 8), speed: rand(38, 44), phase: rand(0, 6),
+      body: '#27324a', skin: pick(SKIN), size: 1.08, guard: true, post,
     });
   }
 }
@@ -285,10 +301,10 @@ function takePhoto(v) {
   const room = roomAt(v.x, v.y);
   flashes.push({ x: v.x, y: v.y, painting: v.photo.painting, t: 0 });
   // The nearest guard in the room walks over to have a word.
-  const guard = people.filter((g) => g.guard && roomAt(g.x, g.y) === room)
+  const guard = people.filter((g) => g.guard && !g.chasing)
     .sort((a, b) => Math.hypot(a.x - v.x, a.y - v.y) - Math.hypot(b.x - v.x, b.y - v.y))[0];
-  if (guard) {
-    guard.path = [{ x: v.x + (guard.x < v.x ? -15 : 15), y: v.y + 4 }];
+  if (guard && room) {
+    guard.path = legTo(roomAt(guard.x, guard.y) || roomById.lobby, room, { x: v.x + (guard.x < v.x ? -15 : 15), y: v.y + 4 });
     guard.wait = 0;
     guard.scold = true;
   }
@@ -298,7 +314,6 @@ function updatePeople(dt) {
   flashCooldown -= dt;
   for (const v of people) {
     let ax = 0, ay = 0;
-    v.chasing = false;
     if (v.say && (v.say.t -= dt) <= 0) v.say = null;
     const startRoom = roomAt(v.x, v.y);
 
@@ -311,17 +326,17 @@ function updatePeople(dt) {
       if (dist < 6) {
         v.path.shift();
         if (!v.path.length) {
-          v.wait = v.guard ? rand(6, 14) : rand(2, 9);
-          if (v.scold) { v.scold = false; v.say = { text: 'No flash!', t: 2.4 }; v.wait = 3; }
+          v.wait = v.guard ? (v.chasing ? 0 : rand(6, 14)) : rand(2, 9);
+          if (v.scold) { v.scold = false; v.say = { text: 'No flash!', t: 2.4 }; v.wait = 3; }  // then planNext walks them back
           // Now and then, someone looking at a painting takes a flash photo.
           if (!v.guard && t.facing && flashCooldown <= 0 && Math.random() < 0.3) {
             v.photo = { t: 0, painting: t.facing, fired: false };
-            v.wait = Math.max(v.wait, 2.4);
+            v.wait = Math.max(v.wait, 4.5);
             flashCooldown = rand(7, 13);
           }
         }
       } else {
-        const pace = v.scold ? 50 : v.speed;   // guards hurry over to flash photographers
+        const pace = v.chasing ? 75 : v.scold ? 110 : v.speed;   // guards hurry when chasing or scolding
         ax += (dx / dist) * pace * 3 - v.vx * 3;
         ay += (dy / dist) * pace * 3 - v.vy * 3;
       }
@@ -336,12 +351,20 @@ function updatePeople(dt) {
       if (v.photo.t > 1.7) v.photo = null;
     }
 
-    // Guards chase the runaway statue when it comes through their room.
-    if (v.guard && statue.state === 'run') {
-      const dx = statue.x - v.x, dy = statue.y - v.y, d = Math.hypot(dx, dy);
-      if (d < 170 && d > 0.01 && roomAt(statue.x, statue.y) === startRoom) {
-        ax += (dx / d) * 500 - v.vx * 3; ay += (dy / d) * 500 - v.vy * 3;
-        v.chasing = true; v.path = []; v.wait = Math.max(v.wait, 0.8);
+    // Guards chase the runaway statue, through the galleries, until it's back on its pedestal.
+    if (v.guard) {
+      if (statue.state !== 'still') {
+        v.chasing = true; v.scold = false;
+        v.chaseT = (v.chaseT || 0) - dt;
+        if (v.chaseT <= 0) {
+          v.chaseT = 0.35;
+          const target = roomAt(statue.x, statue.y) || roomById.lobby;
+          v.path = legTo(startRoom || roomById.lobby, target, { x: statue.x, y: statue.y });
+          v.wait = 0;
+        }
+      } else if (v.chasing) {
+        v.chasing = false;              // the statue is home: back to the post
+        v.path = []; v.wait = rand(0.6, 1.8);
       }
     }
 
@@ -372,7 +395,7 @@ function updatePeople(dt) {
 
     v.vx += ax * dt; v.vy += ay * dt;
     if (fleeing) v.photo = null;
-    const max = fleeing ? 120 : v.chasing ? 75 : v.scold ? 48 : v.speed * 1.3;
+    const max = fleeing ? 120 : v.chasing ? 75 : v.scold ? 110 : v.speed * 1.3;
     const sp = Math.hypot(v.vx, v.vy);
     if (sp > max) { v.vx *= max / sp; v.vy *= max / sp; }
     v.x += v.vx * dt; v.y += v.vy * dt;
@@ -632,11 +655,11 @@ function drawFurniture(b) {
     drawBox(b, '#fdfbf6', '#ece5d9', 'rgba(60, 40, 20, .35)');
     // the museum's name engraved on the front, sized to fit
     const yFront = sy(b.y + b.d, b.h), yBase = sy(b.y + b.d);
-    let size = 8;
+    let size = 13;
     do { ctx.font = `600 ${size}px Georgia, serif`; size -= 0.25; }
-    while (ctx.measureText('THE MINIATURE MUSEUM').width + 20 * 1.1 > b.w - 12 && size > 4);
+    while (ctx.measureText('THE MINIATURE MUSEUM').width + 20 * 1.4 > b.w - 16 && size > 4);
     ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(70, 52, 38, .85)';
-    drawSpaced('THE MINIATURE MUSEUM', b.x + b.w / 2, (yFront + yBase) / 2 + 0.5, 1.1);
+    drawSpaced('THE MINIATURE MUSEUM', b.x + b.w / 2, (yFront + yBase) / 2 + 0.5, 1.4);
     return;
   }
   if (b.kind === 'bench') drawBox(b, '#b08a64', '#8f6c4c', 'rgba(60, 40, 20, .4)');
@@ -685,14 +708,14 @@ function drawOverlays() {
     }
   }
   // Guards' speech bubbles
-  ctx.font = '600 6.5px system-ui, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+  ctx.font = '700 9px system-ui, sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
   for (const v of people) {
     if (!v.say) continue;
-    const x = v.x, y = sy(v.y) - 28, w = ctx.measureText(v.say.text).width + 8;
+    const x = v.x, y = sy(v.y) - 32, w = ctx.measureText(v.say.text).width + 12;
     ctx.globalAlpha = Math.min(1, v.say.t * 3);
     ctx.fillStyle = '#fff'; ctx.strokeStyle = 'rgba(40, 30, 20, .35)'; ctx.lineWidth = 0.6;
-    roundRect(x - w / 2, y - 5.5, w, 11, 4); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - 2, y + 5.4); ctx.lineTo(x, y + 8.5); ctx.lineTo(x + 2, y + 5.4); ctx.fill();
+    roundRect(x - w / 2, y - 7.5, w, 15, 6); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 3, y + 7.4); ctx.lineTo(x, y + 11.5); ctx.lineTo(x + 3, y + 7.4); ctx.fill();
     ctx.fillStyle = '#b5543c'; ctx.fillText(v.say.text, x, y + 0.3);
     ctx.globalAlpha = 1;
   }
@@ -858,7 +881,7 @@ function onMove(e) {
   statueHovered = !hovered && statueAt(e.clientX, e.clientY);
   canvas.style.cursor = hovered || statueHovered ? 'pointer' : 'default';
   if (statueHovered && e.pointerType !== 'touch') {
-    tooltip.replaceChildren('Marble statue', Object.assign(document.createElement('span'), { textContent: 'Please do not touch' }));
+    tooltip.replaceChildren('Marble statue', Object.assign(document.createElement('span'), { textContent: 'Click me' }));
     const r = statueRect();
     tooltip.style.left = `${cam.ox + statue.x * cam.s}px`;
     tooltip.style.top = `${cam.oy + r.y0 * cam.s}px`;
