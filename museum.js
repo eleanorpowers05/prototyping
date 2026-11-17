@@ -469,6 +469,10 @@ function showViewer(p) {
   img.classList.remove('loaded');
   img.alt = `${p.display} by ${p.artist || 'unknown artist'}`;
   img.onload = () => img.classList.add('loaded');
+  img.onerror = () => {
+    $('v-art').title = "The full-size image couldn't load. Try the artic.edu link.";
+  };
+  $('v-art').title = '';
   $('v-art').style.backgroundImage = p.lqip ? `url("${p.lqip}")` : '';
   const size = p.publicDomain ? 1686 : 843;   // the museum serves larger images for public-domain works
   img.src = p.imageId ? `https://www.artic.edu/iiif/2/${p.imageId}/full/${size},/0/default.jpg` : '';
