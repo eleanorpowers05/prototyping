@@ -1,6 +1,6 @@
 # The Miniature Museum
 
-A bird's-eye, dollhouse-style museum. Little visitors wander between the galleries and scatter away from your cursor. Click a painting (or use the Guide) to zoom in and see it full size with its details.
+A bird's-eye, dollhouse-style museum. Little visitors wander between the galleries and scatter away from your cursor. Click a painting (or use the Guide) to zoom in and see it full size with its details. Click the statue in the lobby and it runs away, then sneaks back to its pedestal.
 
 Artworks and images come from the [Art Institute of Chicago API](https://api.artic.edu/docs/) (no key needed). Deployed on Vercel from the `museum` branch.
 
@@ -14,5 +14,7 @@ Artworks and images come from the [Art Institute of Chicago API](https://api.art
 Edit `GALLERIES` in `scripts/fetch-artworks.mjs` (artwork ids are the number in an artic.edu artwork URL), then run:
 
     node scripts/fetch-artworks.mjs
+
+Pieces from other museums go in `CUSTOM` in the same script, with their image saved as `images/<id>.jpg` (like Soir Bleu, on loan from the Whitney).
 
 Room positions, doors and furniture are set at the top of `museum.js`. Each gallery `id` must match a room there.

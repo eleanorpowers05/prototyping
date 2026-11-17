@@ -12,10 +12,10 @@ const ROOMS = [
   { id: 'oldmasters',    x0: 0,    y0: 0,   x1: 400,  y1: ROW, floor: '#e6d6bd' },
   { id: 'impressionism', x0: 400,  y0: 0,   x1: 1000, y1: ROW, floor: '#ecdfca' },
   { id: 'okeeffe',       x0: 1000, y0: 0,   x1: W,    y1: ROW, floor: '#efe3d2' },
-  { id: 'modern',        x0: 0,    y0: ROW, x1: 560,  y1: D,   floor: '#ebe6de' },
-  { id: 'lobby',         x0: 560,  y0: ROW, x1: 1000, y1: D,   floor: '#f3eee6', name: 'Lobby' },
-  { id: 'japanese',      x0: 1000, y0: ROW, x1: 1300, y1: D,   floor: '#e9dfcf' },
-  { id: 'american',      x0: 1300, y0: ROW, x1: W,    y1: D,   floor: '#e7dac6' },
+  { id: 'modern',        x0: 0,    y0: ROW, x1: 420,  y1: D,   floor: '#ebe6de' },
+  { id: 'lobby',         x0: 420,  y0: ROW, x1: 880,  y1: D,   floor: '#f3eee6', name: 'Lobby' },
+  { id: 'japanese',      x0: 880,  y0: ROW, x1: 1200, y1: D,   floor: '#e9dfcf' },
+  { id: 'american',      x0: 1200, y0: ROW, x1: W,    y1: D,   floor: '#e7dac6' },
 ];
 const roomById = Object.fromEntries(ROOMS.map((r) => [r.id, r]));
 
@@ -27,11 +27,12 @@ const DOORS = [
   ['okeeffe', 'japanese', 1145, ROW, 'h'],
   ['oldmasters', 'impressionism', 400, 215, 'v'],
   ['impressionism', 'okeeffe', 1000, 215, 'v'],
-  ['modern', 'lobby', 560, 655, 'v'],
-  ['lobby', 'japanese', 1000, 655, 'v'],
-  ['japanese', 'american', 1300, 655, 'v'],
+  ['modern', 'lobby', 420, 655, 'v'],
+  ['lobby', 'japanese', 880, 655, 'v'],
+  ['japanese', 'american', 1200, 655, 'v'],
 ].map(([a, b, x, y, o]) => ({ a, b, x, y, o }));
-const ENTRANCE = { x0: 730, x1: 830 };
+const ENTRANCE = { x0: 600, x1: 700 };
+const LOBBY_X = 650;   // middle of the lobby
 
 // ===== Walls and furniture (axis-aligned boxes: x, y, w, d on the floor, h tall) =====
 const walls = [];
@@ -54,7 +55,7 @@ vWall(W - T / 2, 0, D, []);                              // east
 hWall(D - T / 2, 0, W, [[ENTRANCE.x0, ENTRANCE.x1]], 12); // south: low, like a dollhouse cut-away
 hWall(ROW, 0, W);                                        // middle
 for (const x of [400, 1000]) vWall(x, 0, ROW);
-for (const x of [560, 1000, 1300]) vWall(x, ROW, D);
+for (const x of [420, 880, 1200]) vWall(x, ROW, D);
 
 const furniture = [];
 for (const r of ROOMS) {
@@ -63,9 +64,11 @@ for (const r of ROOMS) {
   const bw = Math.min(110, (r.x1 - r.x0) * 0.35);
   furniture.push({ kind: 'bench', x: cx - bw / 2, y: cy - 7, w: bw, d: 14, h: 9 });
 }
-furniture.push({ kind: 'desk', x: 735, y: 600, w: 90, d: 26, h: 18 });
+furniture.push({ kind: 'desk', x: LOBBY_X - 45, y: 500, w: 90, d: 26, h: 18 });
+const PEDESTAL = { kind: 'pedestal', x: LOBBY_X - 11, y: 690, w: 22, d: 22, h: 14 };
+furniture.push(PEDESTAL);
 const plants = [
-  { x: 590, y: 860 }, { x: 970, y: 860 }, { x: 590, y: 460 }, { x: 970, y: 460 },
+  { x: 450, y: 860 }, { x: 850, y: 860 }, { x: 450, y: 460 }, { x: 850, y: 460 },
   { x: 30, y: 870 }, { x: 1570, y: 870 }, { x: 1570, y: 40 }, { x: 30, y: 40 },
 ].map((p) => ({ ...p, r: 9 }));
 const solids = [...walls, ...furniture];
@@ -153,7 +156,7 @@ function hangPaintings() {
       const cols = Math.max(6, Math.round(it.width / 2.5)), rows = Math.max(6, Math.round(it.h / 2.5));
       const tiny = loadImage(p.lqip, (img) => { if (!p.pixel) p.pixel = pixelate(img, cols, rows); });
       if (tiny && tiny.complete && tiny.naturalWidth) p.pixel = pixelate(tiny, cols, rows);
-      loadImage(`images/${p.id}.jpg`, (img) => { p.pixel = pixelate(img, cols, rows); });
+      loadImage(p.image, (img) => { p.pixel = pixelate(img, cols, rows); });
       paintings.push(p);
     }
   }
@@ -209,16 +212,17 @@ function viewingSpot(room) {
   const p = pick(options);
   return { x: p.cx + rand(-0.4, 0.4) * (p.x1 - p.x0) + rand(-8, 8), y: p.faceY + rand(28, 70), facing: p };
 }
+// A point just inside room r next to door d, so walkers line up before passing through.
+const inward = (d, r) => (d.o === 'h' ? { x: d.x, y: d.y + (r.y0 < d.y ? -26 : 26) } : { x: d.x + (r.x0 < d.x ? -26 : 26), y: d.y });
 function planNext(v) {
   const room = roomAt(v.x, v.y);
   v.path = [];
-  if (!room) { v.path.push({ x: 780, y: 760 }); return; }
+  if (!room) { v.path.push({ x: LOBBY_X, y: 760 }); return; }
   const doors = DOORS.filter((d) => d.a === room.id || d.b === room.id);
   if (doors.length && Math.random() < 0.28) {
     const d = pick(doors);
     const next = roomById[d.a === room.id ? d.b : d.a];
-    const inward = (r) => (d.o === 'h' ? { x: d.x, y: d.y + (r.y0 < d.y ? -26 : 26) } : { x: d.x + (r.x0 < d.x ? -26 : 26), y: d.y });
-    v.path.push(inward(room), { x: d.x, y: d.y }, inward(next));
+    v.path.push(inward(d, room), { x: d.x, y: d.y }, inward(d, next));
     const dest = next.id === 'lobby' || Math.random() < 0.35 ? randomSpot(next) : viewingSpot(next);
     v.path.push(dest);
   } else {
@@ -307,6 +311,11 @@ function updatePeople(dt) {
       }
     }
 
+    if (statue.state === 'run') {
+      const dx = v.x - statue.x, dy = v.y - statue.y, d = Math.hypot(dx, dy);
+      if (d < 45 && d > 0.01) { const f = (1 - d / 45) * 900; ax += (dx / d) * f; ay += (dy / d) * f; fleeing = true; }
+    }
+
     v.vx += ax * dt; v.vy += ay * dt;
     const max = fleeing ? 120 : v.speed * 1.3;
     const sp = Math.hypot(v.vx, v.vy);
@@ -321,6 +330,105 @@ function updatePeople(dt) {
     v.moving = Math.hypot(v.vx, v.vy) > 4;
     if (v.moving) v.phase += dt * (8 + Math.hypot(v.vx, v.vy) * 0.15);
   }
+}
+
+// ===== The lobby statue: click it and it hops down, runs off, then sneaks back =====
+const STATUE_HOME = { x: PEDESTAL.x + PEDESTAL.w / 2, y: PEDESTAL.y + PEDESTAL.d / 2 };
+const STATUE_LANDING = { x: STATUE_HOME.x, y: PEDESTAL.y + PEDESTAL.d + 10 };
+const statue = { ...STATUE_HOME, z: PEDESTAL.h, state: 'still', path: [], vx: 0, vy: 0, phase: 0, hop: null };
+
+function roomRoute(fromId, toId) {          // shortest list of doors between two rooms
+  const prev = { [fromId]: null }, queue = [fromId];
+  while (queue.length) {
+    const id = queue.shift();
+    if (id === toId) break;
+    for (const d of DOORS) {
+      const next = d.a === id ? d.b : d.b === id ? d.a : null;
+      if (next && !(next in prev)) { prev[next] = { id, d }; queue.push(next); }
+    }
+  }
+  const doors = [];
+  for (let id = toId; prev[id]; id = prev[id].id) doors.unshift(prev[id].d);
+  return doors;
+}
+function legTo(fromRoom, toRoom, dest) {
+  const pts = [];
+  let cur = fromRoom;
+  for (const d of roomRoute(fromRoom.id, toRoom.id)) {
+    const next = roomById[d.a === cur.id ? d.b : d.a];
+    pts.push(inward(d, cur), { x: d.x, y: d.y }, inward(d, next));
+    cur = next;
+  }
+  pts.push(dest);
+  return pts;
+}
+function planEscape() {
+  // Dash through two other galleries, then come home.
+  const here = roomAt(statue.x, statue.y) || roomById.lobby;
+  const others = ROOMS.filter((r) => r.id !== 'lobby' && r !== here);
+  const r1 = pick(others), r2 = pick(others.filter((r) => r !== r1));
+  const s1 = randomSpot(r1), s2 = randomSpot(r2);
+  statue.path = [...legTo(here, r1, s1), ...legTo(r1, r2, s2), ...legTo(r2, roomById.lobby, STATUE_LANDING)];
+}
+function startHop(from, to, then) {
+  statue.hop = { from, to, t: 0, dur: 0.45, then };
+  statue.state = 'hop';
+}
+function kickStatue() {
+  if (statue.state === 'still') {
+    startHop({ ...STATUE_HOME, z: PEDESTAL.h }, { ...STATUE_LANDING, z: 0 }, () => { statue.state = 'run'; planEscape(); });
+  } else if (statue.state === 'run') {
+    planEscape();                            // clicked again mid-run: off it goes somewhere else
+  }
+}
+function updateStatue(dt) {
+  if (statue.state === 'hop') {
+    const h = statue.hop;
+    h.t = Math.min(1, h.t + dt / h.dur);
+    statue.x = h.from.x + (h.to.x - h.from.x) * h.t;
+    statue.y = h.from.y + (h.to.y - h.from.y) * h.t;
+    statue.z = h.from.z + (h.to.z - h.from.z) * h.t + Math.sin(h.t * Math.PI) * 16;
+    if (h.t >= 1) { statue.hop = null; h.then(); }
+    return;
+  }
+  if (statue.state !== 'run') return;
+  let ax = 0, ay = 0;
+  const t = statue.path[0];
+  if (t) {
+    const dx = t.x - statue.x, dy = t.y - statue.y, dist = Math.hypot(dx, dy);
+    if (dist < 8) statue.path.shift();
+    else { ax += (dx / dist) * 900 - statue.vx * 6; ay += (dy / dist) * 900 - statue.vy * 6; }
+  } else if (Math.hypot(statue.x - STATUE_LANDING.x, statue.y - STATUE_LANDING.y) < 10) {
+    statue.vx = statue.vy = 0;
+    startHop({ x: statue.x, y: statue.y, z: 0 }, { ...STATUE_HOME, z: PEDESTAL.h }, () => { statue.state = 'still'; });
+    return;
+  } else {
+    statue.path = legTo(roomAt(statue.x, statue.y) || roomById.lobby, roomById.lobby, STATUE_LANDING);
+  }
+  // It's shy of the cursor too.
+  if (mouse) {
+    const dx = statue.x - mouse.x, dy = statue.y - mouse.y, d = Math.hypot(dx, dy);
+    if (d < 50 && d > 0.01) { ax += (dx / d) * 2500 * (1 - d / 50); ay += (dy / d) * 2500 * (1 - d / 50); }
+  }
+  const before = roomAt(statue.x, statue.y);
+  statue.vx += ax * dt; statue.vy += ay * dt;
+  const sp = Math.hypot(statue.vx, statue.vy), max = 140;
+  if (sp > max) { statue.vx *= max / sp; statue.vy *= max / sp; }
+  statue.x += statue.vx * dt; statue.y += statue.vy * dt;
+  collide(statue);
+  const after = roomAt(statue.x, statue.y);
+  if (after && after !== before) {
+    // Knocked off course into another room? Head home from here.
+    const expected = statue.path.find((p) => roomAt(p.x, p.y));
+    if (expected && roomAt(expected.x, expected.y) !== after && !DOORS.some((d) => Math.hypot(d.x - statue.x, d.y - statue.y) < 50)) {
+      statue.path = legTo(after, roomById.lobby, STATUE_LANDING);
+    }
+  }
+  statue.phase += dt * 16;
+}
+function statueRect() {
+  const s = 1.7, base = sy(statue.y) - statue.z;
+  return { x0: statue.x - 8 * s, x1: statue.x + 8 * s, y0: base - 19 * s, y1: base + 3 };
 }
 
 // ===== Drawing =====
@@ -383,9 +491,10 @@ function drawBox(b, top, face, edge) {
 function drawWall(b) {
   drawBox(b, '#fffdf8', '#f1eadf', 'rgba(120, 100, 80, .35)');
   // The lobby sign on the middle wall
-  if (b.y + b.d === ROW + T / 2 && b.x <= 880 && b.x + b.w >= 880 && b.x >= 560) {
+  const SIGN_X = 580;
+  if (b.y + b.d === ROW + T / 2 && b.x <= SIGN_X && b.x + b.w >= SIGN_X) {
     ctx.fillStyle = 'rgba(60, 45, 35, .7)'; ctx.font = '600 8px Georgia, serif';
-    drawSpaced('THE MINIATURE MUSEUM', 890, sy(b.y + b.d, H * 0.55), 1.4);
+    drawSpaced('THE MINIATURE MUSEUM', SIGN_X, sy(b.y + b.d, H * 0.55), 1.4);
   }
 }
 function drawPainting(p, hovered) {
@@ -407,7 +516,34 @@ function drawPainting(p, hovered) {
   } else { ctx.fillStyle = '#cbbfae'; ctx.fillRect(r.x0, r.y0, w, h); }
   if (hovered) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.8; ctx.strokeRect(r.x0 - f - 1.2, r.y0 - f - 1.2, w + f * 2 + 2.4, h + f * 2 + 2.4); }
 }
+function drawStatue() {
+  const s = 1.7, x = statue.x, floorY = sy(statue.y);
+  const running = statue.state === 'run';
+  const bob = running ? Math.abs(Math.sin(statue.phase)) * 2.2 : 0;
+  const base = floorY - statue.z - bob;
+  const marble = '#f6f3ec', shade = '#dcd5c8', edge = 'rgba(110, 100, 85, .6)';
+  // shadow: on the pedestal top when standing there, on the floor otherwise
+  const shadowY = statue.state === 'still' ? floorY - PEDESTAL.h : floorY;
+  ctx.fillStyle = 'rgba(40, 30, 20, .18)';
+  ctx.beginPath(); ctx.ellipse(x, shadowY, 5.5 * s, 2.4 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = statueHovered ? '#b5543c' : edge; ctx.lineWidth = statueHovered ? 1.2 : 0.7;
+  const part = (px, py, w, h, r, fill) => { ctx.fillStyle = fill; roundRect(px, py, w, h, r); ctx.fill(); ctx.stroke(); };
+  if (running) {
+    const swing = Math.sin(statue.phase) * 3 * s;
+    part(x - 6.2 * s, base - 10 * s + swing * 0.3, 2.4 * s, 6.5 * s, 1.2 * s, shade);
+    part(x + 3.8 * s, base - 10 * s - swing * 0.3, 2.4 * s, 6.5 * s, 1.2 * s, shade);
+    part(x - 3.8 * s, base - 11 * s, 7.6 * s, 10 * s, 3.6 * s, marble);
+    ctx.fillStyle = marble; ctx.beginPath(); ctx.arc(x, base - 14.6 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else {
+    // a classic pose: head bowed, one arm across the chest
+    part(x - 6 * s, base - 10.5 * s, 2.4 * s, 7 * s, 1.2 * s, shade);
+    part(x - 3.8 * s, base - 11 * s, 7.6 * s, 10 * s, 3.6 * s, marble);
+    part(x - 2.5 * s, base - 8.5 * s, 7.4 * s, 2.3 * s, 1.1 * s, shade);
+    ctx.fillStyle = marble; ctx.beginPath(); ctx.arc(x + 1.3 * s, base - 13.8 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+}
 function drawFurniture(b) {
+  if (b.kind === 'pedestal') return drawBox(b, '#f1ede6', '#d6cfc3', 'rgba(60, 40, 20, .35)');
   if (b.kind === 'bench') drawBox(b, '#b08a64', '#8f6c4c', 'rgba(60, 40, 20, .4)');
   else drawBox(b, '#f8f4ec', '#d9cfbf', 'rgba(60, 40, 20, .35)');
 }
@@ -444,6 +580,7 @@ function draw() {
   for (const b of furniture) list.push([b.y + b.d, 0, () => drawFurniture(b)]);
   for (const p of plants) list.push([p.y, 2, () => drawPlant(p)]);
   for (const v of people) list.push([v.y, 2, () => drawPerson(v)]);
+  list.push([statue.state === 'run' ? statue.y : Math.max(statue.y, PEDESTAL.y + PEDESTAL.d) + 0.1, 3, drawStatue]);
   list.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   for (const [, , fn] of list) fn();
 }
@@ -493,7 +630,7 @@ function closePainting() {
 const $ = (id) => document.getElementById(id);
 function showViewer(p) {
   const viewer = $('viewer');
-  $('v-room').textContent = p.featured ? p.gallery.name : `${p.gallery.name} · Also in the collection`;
+  $('v-room').textContent = [p.gallery.name, p.note || (p.featured ? '' : 'Also in the collection')].filter(Boolean).join(' · ');
   $('v-title').textContent = p.display;
   $('v-fulltitle').textContent = p.display !== p.title ? p.title : '';
   $('v-artist').textContent = p.artistDisplay || p.artist || '';
@@ -506,7 +643,8 @@ function showViewer(p) {
   $('v-desc').replaceChildren(...(p.description || 'No description available.').split(/\n\n+/).map((t) => {
     const el = document.createElement('p'); el.textContent = t; return el;
   }));
-  $('v-link').href = `https://www.artic.edu/artworks/${p.id}`;
+  $('v-link').href = p.link;
+  $('v-link').textContent = p.linkLabel || 'View on artic.edu ↗';
   const img = $('v-img');
   img.classList.remove('loaded');
   img.alt = `${p.display} by ${p.artist || 'unknown artist'}`;
@@ -516,7 +654,7 @@ function showViewer(p) {
   };
   $('v-art').title = '';
   $('v-art').style.backgroundImage = p.lqip ? `url("${p.lqip}")` : '';
-  img.src = p.imageId ? `images/${p.id}.jpg` : '';
+  img.src = p.image || '';
   viewer.hidden = false;
   viewer.scrollTop = 0;
   requestAnimationFrame(() => viewer.classList.add('show'));
@@ -570,13 +708,27 @@ function paintingAt(mx, my) {
   const { px, py } = toProj(mx, my);
   return paintings.find((p) => { const r = paintingRect(p); return px >= r.x0 - 3 && px <= r.x1 + 3 && py >= r.y0 - 3 && py <= r.y1 + 3; }) || null;
 }
+let statueHovered = false;
+function statueAt(mx, my) {
+  const { px, py } = toProj(mx, my), r = statueRect();
+  return px >= r.x0 && px <= r.x1 && py >= r.y0 && py <= r.y1;
+}
 let hintTimer = null;
 function onMove(e) {
   if (zoom.active) return;
   const { px, py } = toProj(e.clientX, e.clientY);
   mouse = { x: px, y: py / K };
   hovered = paintingAt(e.clientX, e.clientY);
-  canvas.style.cursor = hovered ? 'pointer' : 'default';
+  statueHovered = !hovered && statueAt(e.clientX, e.clientY);
+  canvas.style.cursor = hovered || statueHovered ? 'pointer' : 'default';
+  if (statueHovered && e.pointerType !== 'touch') {
+    tooltip.replaceChildren('Marble statue', Object.assign(document.createElement('span'), { textContent: 'Please do not touch' }));
+    const r = statueRect();
+    tooltip.style.left = `${cam.ox + statue.x * cam.s}px`;
+    tooltip.style.top = `${cam.oy + r.y0 * cam.s}px`;
+    tooltip.hidden = false;
+    return;
+  }
   if (hovered && e.pointerType !== 'touch') {
     tooltip.replaceChildren(hovered.display, Object.assign(document.createElement('span'), { textContent: hovered.artist || '' }));
     const r = paintingRect(hovered);
@@ -588,12 +740,13 @@ function onMove(e) {
 }
 canvas.addEventListener('pointermove', onMove);
 canvas.addEventListener('pointerdown', onMove);
-canvas.addEventListener('pointerleave', () => { mouse = null; hovered = null; hideTooltip(); });
+canvas.addEventListener('pointerleave', () => { mouse = null; hovered = null; statueHovered = false; hideTooltip(); });
 canvas.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') setTimeout(() => { mouse = null; }, 400); });
 canvas.addEventListener('click', (e) => {
   if (zoom.active) return;
   const p = paintingAt(e.clientX, e.clientY);
   if (p) openPainting(p);
+  else if (statueAt(e.clientX, e.clientY)) { kickStatue(); statueHovered = false; hideTooltip(); }
 });
 
 // ===== Main loop =====
@@ -603,6 +756,7 @@ function frame(now) {
   last = now;
   if (zoom.anim) zoom.anim.step(now);
   updatePeople(dt);
+  updateStatue(dt);
   draw();
   requestAnimationFrame(frame);
 }
