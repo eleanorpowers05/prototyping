@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Miniature Museum</title>
+  <meta name="description" content="A tiny bird's-eye museum of favorite works from the Art Institute of Chicago.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="museum" aria-label="A miniature museum seen from above, with visitors walking between paintings. Use the guide to open a painting."></canvas>
+
+  <header class="hud">
+    <h1>The Miniature Museum</h1>
+    <p class="hint" id="hint">Move your cursor through the crowd · Click a painting to look closer</p>
+  </header>
+
+  <button id="guide-btn" class="guide-btn" type="button" aria-expanded="false" aria-controls="guide">Guide</button>
+  <nav id="guide" class="guide" aria-label="Gallery guide" hidden></nav>
+
+  <div id="tooltip" class="tooltip" hidden></div>
+
+  <div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-labelledby="v-title" hidden>
+    <button class="v-back" id="v-back" type="button">← Back to the museum</button>
+    <div class="v-inner">
+      <figure class="v-art" id="v-art"><img id="v-img" alt=""></figure>
+      <div class="v-info">
+        <p class="v-room" id="v-room"></p>
+        <h2 id="v-title"></h2>
+        <p class="v-fulltitle" id="v-fulltitle"></p>
+        <p class="v-artist" id="v-artist"></p>
+        <dl class="v-facts" id="v-facts"></dl>
+        <div class="v-desc" id="v-desc"></div>
+        <p><a id="v-link" target="_blank" rel="noopener">View on artic.edu ↗</a></p>
+        <div class="v-nav">
+          <button type="button" id="v-prev">← Previous</button>
+          <button type="button" id="v-next">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="credit">Artworks and images courtesy of the <a href="https://www.artic.edu" target="_blank" rel="noopener">Art Institute of Chicago</a></footer>
+
+  <script src="museum.js"></script>
+</body>
+</html>
