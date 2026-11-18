@@ -1064,7 +1064,7 @@ function showViewer(p) {
   requestAnimationFrame(() => viewer.classList.add('show'));
   $('v-back').focus();
 }
-function step(dir) {
+function showNeighbor(dir) {          // Previous / Next in the viewer
   if (!zoom.painting) return;
   const i = paintings.indexOf(zoom.painting);
   const next = paintings[(i + dir + paintings.length) % paintings.length];
@@ -1073,13 +1073,13 @@ function step(dir) {
   showViewer(next);
 }
 $('v-back').addEventListener('click', closePainting);
-$('v-prev').addEventListener('click', () => step(-1));
-$('v-next').addEventListener('click', () => step(1));
+$('v-prev').addEventListener('click', () => showNeighbor(-1));
+$('v-next').addEventListener('click', () => showNeighbor(1));
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { if (zoom.active) closePainting(); else toggleGuide(false); }
   if (zoom.active && !$('viewer').hidden) {
-    if (e.key === 'ArrowLeft') step(-1);
-    if (e.key === 'ArrowRight') step(1);
+    if (e.key === 'ArrowLeft') showNeighbor(-1);
+    if (e.key === 'ArrowRight') showNeighbor(1);
   }
 });
 
@@ -1158,10 +1158,10 @@ let last = performance.now();
 let frameErrorShown = false;
 function frame(now) {
   // Safety net: an error in one frame is logged, but never stops the animation.
-  try { step(now); } catch (err) { if (!frameErrorShown) { console.error(err); frameErrorShown = true; } }
+  try { tick(now); } catch (err) { if (!frameErrorShown) { console.error(err); frameErrorShown = true; } }
   requestAnimationFrame(frame);
 }
-function step(now) {
+function tick(now) {                   // one animation frame
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (zoom.anim) zoom.anim.step(now);
