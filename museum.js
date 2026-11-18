@@ -70,8 +70,10 @@ furniture.push(PEDESTAL);
 const plants = [
   { x: 450, y: 860 }, { x: 850, y: 860 }, { x: 450, y: 460 }, { x: 850, y: 460 },
   { x: 30, y: 870 }, { x: 1570, y: 870 }, { x: 1570, y: 40 }, { x: 30, y: 40 },
-].map((p) => ({ ...p, r: 9 }));
+].map((p, i) => ({ ...p, r: 11, kind: 'snake', phase: i * 1.7, variant: i }));
+const roundProps = [...plants];             // round things people walk around
 const solids = [...walls, ...furniture];
+let clock = 0;                              // seconds since start, for gentle swaying and glowing
 
 // ===== Projection and camera =====
 const canvas = document.getElementById('museum');
@@ -384,7 +386,7 @@ function recordTrail(L) {
 
 function hitsSolid(x, y, r) {
   return solids.some((b) => x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.d) ||
-    plants.some((p) => Math.hypot(x - p.x, y - p.y) < r + p.r);
+    roundProps.some((p) => Math.hypot(x - p.x, y - p.y) < r + p.r);
 }
 function collide(v) {
   for (const b of solids) {
@@ -400,7 +402,7 @@ function collide(v) {
       }
     }
   }
-  for (const p of plants) {
+  for (const p of roundProps) {
     const dx = v.x - p.x, dy = v.y - p.y, dist = Math.hypot(dx, dy), min = p.r + PERSON_R;
     if (dist < min && dist > 0.001) { v.x = p.x + (dx / dist) * min; v.y = p.y + (dy / dist) * min; }
   }
@@ -898,11 +900,61 @@ function drawFurniture(b) {
   else drawBox(b, '#f8f4ec', '#d9cfbf', 'rgba(60, 40, 20, .35)');
 }
 function drawPlant(p) {
-  const y = sy(p.y);
-  ctx.fillStyle = 'rgba(40, 30, 20, .15)'; ctx.beginPath(); ctx.ellipse(p.x, y, 8, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#b86f4c'; roundRect(p.x - 5, y - 9, 10, 9, 2); ctx.fill();
-  ctx.fillStyle = '#6a9a6b';
-  for (const [dx, dy, r] of [[-4, -15, 6], [4, -16, 6], [0, -21, 6.5]]) { ctx.beginPath(); ctx.arc(p.x + dx, y + dy, r, 0, Math.PI * 2); ctx.fill(); }
+  ctx.save();                                  // draw a third bigger, anchored at the pot's base
+  ctx.translate(p.x, sy(p.y)); ctx.scale(1.35, 1.35); ctx.translate(-p.x, -sy(p.y));
+  drawPlantShape(p);
+  ctx.restore();
+}
+function drawPlantShape(p) {
+  const x = p.x, y = sy(p.y), sway = Math.sin(clock * 0.9 + p.phase) * 0.05;
+  ctx.fillStyle = 'rgba(40, 30, 20, .16)'; ctx.beginPath(); ctx.ellipse(x, y, 9, 3.8, 0, 0, Math.PI * 2); ctx.fill();
+  // terracotta pot with a rim
+  ctx.fillStyle = '#b86f4c';
+  ctx.beginPath(); ctx.moveTo(x - 5.5, y - 9); ctx.lineTo(x + 5.5, y - 9); ctx.lineTo(x + 4.2, y); ctx.lineTo(x - 4.2, y); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#c98260'; ctx.fillRect(x - 6.3, y - 10.5, 12.6, 2.4);
+  ctx.fillStyle = 'rgba(0, 0, 0, .12)'; ctx.fillRect(x + 1.5, y - 8, 2.7, 8);
+  const top = y - 10;
+  if (p.kind === 'snake') {
+    // upright, pointed leaves with pale edges
+    // each plant gets its own mix of leaf heights and how many leaves it has
+    const leaves = [[-3.4, 15, -0.18], [-1.2, 20, -0.05], [1.4, 18, 0.08], [3.4, 13, 0.2], [0, 11, 0], [-2.3, 9, -0.3], [2.4, 10, 0.32]]
+      .slice(0, 5 + (p.variant % 3))
+      .map(([dx, h, lean], k) => [dx, h * (0.85 + ((p.variant * 7 + k * 3) % 5) * 0.08), lean]);
+    leaves.forEach(([dx, h, lean], i) => {
+      const a = lean + sway * 0.6, bx = x + dx * 0.6, tx = bx + Math.sin(a) * h, ty = top - Math.cos(a) * h;
+      ctx.fillStyle = i % 2 ? '#4f7f4f' : '#5f9160';
+      ctx.beginPath(); ctx.moveTo(bx - 1.6, top); ctx.quadraticCurveTo(bx - 2, top - h * 0.6, tx, ty); ctx.quadraticCurveTo(bx + 2, top - h * 0.6, bx + 1.6, top); ctx.fill();
+      ctx.strokeStyle = '#c9d98a'; ctx.lineWidth = 0.4; ctx.stroke();
+    });
+    return;
+  }
+  // ferns and palms: arching fronds with little leaflets, back ones darker
+  const fronds = p.kind === 'palm'
+    ? [-2.5, -1.9, -1.2, -0.6, 0, 0.6, 1.2, 1.9, 2.5].map((a, i) => ({ a, len: 19 + (i % 2) * 2 }))
+    : [-2.8, -2.4, -2, -1.6, -1.2, -0.8, -0.4, 0, 0.4, 0.8, 1.2, 1.6, 2, 2.4, 2.8].map((a, i) => ({ a, len: 14 + (i % 3) * 3 }));
+  fronds.sort((f, g) => Math.abs(g.a) - Math.abs(f.a));       // outer (back) fronds first
+  for (const { a, len } of fronds) {
+    const spread = p.kind === 'palm' ? 0.5 : 0.44;
+    const ang = a * spread + sway;                               // fan out around straight up
+    const tx = x + Math.sin(ang) * len, ty = top - Math.cos(ang) * len * 0.8 + Math.abs(Math.sin(ang)) * len * 0.18;
+    const cx = x + Math.sin(ang) * len * 0.4, cy = top - len * (p.kind === 'palm' ? 0.95 : 0.8);
+    const shade = Math.abs(a) > 1.8 ? '#4a7a4c' : Math.abs(a) > 0.9 ? '#5b8e5c' : '#6fa46c';
+    ctx.strokeStyle = shade; ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.quadraticCurveTo(cx, cy, tx, ty); ctx.stroke();
+    // leaflets along the frond
+    const n = p.kind === 'palm' ? 8 : 7;
+    ctx.fillStyle = shade;
+    for (let k = 1; k <= n; k++) {
+      const t = k / (n + 1), it = 1 - t;
+      const px = it * it * x + 2 * it * t * cx + t * t * tx, py = it * it * top + 2 * it * t * cy + t * t * ty;
+      const dx = 2 * it * (cx - x) + 2 * t * (tx - cx), dy = 2 * it * (cy - top) + 2 * t * (ty - cy);
+      const dl = Math.hypot(dx, dy) || 1, nx = -dy / dl, ny = dx / dl;
+      const w = p.kind === 'palm' ? 4.2 * (0.35 + t * 0.65) : 3 * (1 - t * 0.55);   // palm leaves widen toward the tip
+      for (const side of [-1, 1]) {
+        ctx.beginPath(); ctx.ellipse(px + nx * w * 0.55 * side, py + ny * w * 0.55 * side, w * 0.6, 0.75, Math.atan2(ny * side, nx * side) + 0.5 * side, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
 }
 function drawPerson(v) {
   const x = v.x, y = sy(v.y), s = v.size;
@@ -1164,6 +1216,7 @@ function frame(now) {
 function tick(now) {                   // one animation frame
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
+  clock += dt;
   if (zoom.anim) zoom.anim.step(now);
   updatePeople(dt);
   updateStatue(dt);
