@@ -899,6 +899,31 @@ function drawFurniture(b) {
   if (b.kind === 'bench') drawBox(b, '#b08a64', '#8f6c4c', 'rgba(60, 40, 20, .4)');
   else drawBox(b, '#f8f4ec', '#d9cfbf', 'rgba(60, 40, 20, .35)');
 }
+// Leaves bend away from the cursor (and from visitors brushing past), then spring back.
+let lastMouse = null;
+function updatePlants(dt) {
+  const mvx = mouse && lastMouse ? (mouse.x - lastMouse.x) / dt : 0;   // how fast the cursor is sweeping
+  lastMouse = mouse ? { ...mouse } : null;
+  for (const p of plants) {
+    let push = 0;
+    if (mouse) {
+      // compare on screen: the leaves stand above the pot
+      const dx = p.x - mouse.x, dy = (sy(p.y) - 24) - mouse.y * K, d = Math.hypot(dx, dy), R = 26;
+      if (d < R) {
+        push += Math.sign(dx || 1) * (0.35 + 0.65 * (1 - d / R)) * 24;   // lean away from the cursor
+        p.bendV = (p.bendV || 0) + Math.max(-1, Math.min(1, mvx / 300)) * (1 - d / R) * 90 * dt;   // rustle with the sweep
+      }
+    }
+    for (const v of people) {
+      const dx = p.x - v.x, dy = p.y - v.y, d = Math.hypot(dx, dy);
+      if (d < 20) push += Math.sign(dx || 1) * (1 - d / 20) * 8;
+    }
+    // spring back to upright with a little wobble
+    p.bend = p.bend || 0; p.bendV = p.bendV || 0;
+    p.bendV += (push - 38 * p.bend - 3.2 * p.bendV) * dt;
+    p.bend = Math.max(-0.9, Math.min(0.9, p.bend + p.bendV * dt));
+  }
+}
 function drawPlant(p) {
   ctx.save();                                  // draw a third bigger, anchored at the pot's base
   ctx.translate(p.x, sy(p.y)); ctx.scale(1.35, 1.35); ctx.translate(-p.x, -sy(p.y));
@@ -921,7 +946,8 @@ function drawPlantShape(p) {
       .slice(0, 5 + (p.variant % 3))
       .map(([dx, h, lean], k) => [dx, h * (0.85 + ((p.variant * 7 + k * 3) % 5) * 0.08), lean]);
     leaves.forEach(([dx, h, lean], i) => {
-      const a = lean + sway * 0.6, bx = x + dx * 0.6, tx = bx + Math.sin(a) * h, ty = top - Math.cos(a) * h;
+      const give = (h / 18) * (0.85 + (i % 3) * 0.12);                // taller leaves bend more
+      const a = lean + sway * 0.6 + (p.bend || 0) * give, bx = x + dx * 0.6, tx = bx + Math.sin(a) * h, ty = top - Math.cos(a) * h;
       ctx.fillStyle = i % 2 ? '#4f7f4f' : '#5f9160';
       ctx.beginPath(); ctx.moveTo(bx - 1.6, top); ctx.quadraticCurveTo(bx - 2, top - h * 0.6, tx, ty); ctx.quadraticCurveTo(bx + 2, top - h * 0.6, bx + 1.6, top); ctx.fill();
       ctx.strokeStyle = '#c9d98a'; ctx.lineWidth = 0.4; ctx.stroke();
@@ -1221,6 +1247,7 @@ function tick(now) {                   // one animation frame
   updatePeople(dt);
   updateStatue(dt);
   updateCouple(dt);
+  updatePlants(dt);
   for (const f of flashes) f.t += dt;
   while (flashes.length && flashes[0].t > FLASH_TIME) flashes.shift();
   draw();
