@@ -901,7 +901,40 @@ function drawFurniture(b) {
 }
 // Leaves bend away from the cursor (and from visitors brushing past), then spring back.
 let lastMouse = null;
+const leafBits = [];                      // little green flecks shaken off the leaves
+const LEAF_GREENS = ['#5f9160', '#4f7f4f', '#79a86f', '#c9d98a'];
+function shakeLeaves(p, strength, dir) {
+  p.bitBudget = Math.min(10, (p.bitBudget || 0) + strength);
+  while (p.bitBudget >= 1 && leafBits.length < 160) {
+    p.bitBudget -= 1;
+    leafBits.push({
+      x: p.x + rand(-6, 6), y: p.y + rand(-2, 2), z: rand(16, 34),
+      vx: dir * rand(10, 45) + rand(-12, 12), vy: rand(-8, 8), vz: rand(4, 22),
+      t: 0, life: rand(1.1, 2), flutter: rand(0, 6), color: pick(LEAF_GREENS), size: rand(1.7, 2.7),
+    });
+  }
+}
+function updateLeafBits(dt) {
+  for (const b of leafBits) {
+    b.t += dt;
+    b.vz -= 30 * dt;                                   // drift down slowly, like a leaf
+    b.vx *= 1 - 1.2 * dt; b.vy *= 1 - 1.2 * dt;
+    b.x += (b.vx + Math.sin(b.t * 7 + b.flutter) * 8) * dt;
+    b.y += b.vy * dt;
+    b.z = Math.max(0, b.z + b.vz * dt);
+  }
+  for (let i = leafBits.length - 1; i >= 0; i--) if (leafBits[i].t > leafBits[i].life) leafBits.splice(i, 1);
+}
+function drawLeafBits() {
+  for (const b of leafBits) {
+    ctx.globalAlpha = Math.max(0, Math.min(1, (b.life - b.t) / 0.5));
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x - b.size / 2, sy(b.y) - b.z - b.size / 2, b.size, b.size);
+  }
+  ctx.globalAlpha = 1;
+}
 function updatePlants(dt) {
+  updateLeafBits(dt);
   const mvx = mouse && lastMouse ? (mouse.x - lastMouse.x) / dt : 0;   // how fast the cursor is sweeping
   lastMouse = mouse ? { ...mouse } : null;
   for (const p of plants) {
@@ -912,6 +945,8 @@ function updatePlants(dt) {
       if (d < R) {
         push += Math.sign(dx || 1) * (0.35 + 0.65 * (1 - d / R)) * 24;   // lean away from the cursor
         p.bendV = (p.bendV || 0) + Math.max(-1, Math.min(1, mvx / 300)) * (1 - d / R) * 90 * dt;   // rustle with the sweep
+        const sweep = Math.min(1, Math.abs(mvx) / 500);
+        if (sweep > 0.06) shakeLeaves(p, sweep * 80 * dt * (1 - d / R + 0.3), Math.sign(mvx));   // faster sweeps shake off more
       }
     }
     for (const v of people) {
@@ -1015,6 +1050,7 @@ function drawPerson(v) {
   }
 }
 function drawOverlays() {
+  drawLeafBits();
   drawShards();
   drawHearts();
   // Camera flashes: a burst of light at the camera and on the painting.
