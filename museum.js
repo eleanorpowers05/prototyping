@@ -883,6 +883,82 @@ function drawStatue() {
   ctx.globalAlpha = 1;
   ctx.imageSmoothingEnabled = true;
 }
+let BENCH_STYLE = 'leather';   // 'wood' (slatted planks) or 'leather' (upholstered, tufted)
+function drawBench(b) { return BENCH_STYLE === 'leather' ? drawLeatherBench(b) : drawWoodBench(b); }
+// An upholstered leather bench: a tufted cushion with piping on slim dark legs.
+function drawLeatherBench(b) {
+  const seatZ = b.h + 3, cushion = 4, legW = 2.2, inset = 6;
+  ctx.fillStyle = 'rgba(40, 30, 20, .09)';
+  roundRect(b.x + 2, sy(b.y + 3), b.w - 4, (b.d + 1) * K, 3); ctx.fill();
+  ctx.fillStyle = '#2a211c';
+  for (const lx of [b.x + inset, b.x + b.w - inset - legW]) {
+    ctx.fillRect(lx, sy(b.y + 2, seatZ), legW, sy(b.y + 2) - sy(b.y + 2, seatZ));
+    ctx.fillRect(lx, sy(b.y + b.d - 2, seatZ - cushion), legW, sy(b.y + b.d - 2) - sy(b.y + b.d - 2, seatZ - cushion));
+  }
+  const top = sy(b.y, seatZ), front = sy(b.y + b.d, seatZ);
+  // cushion front (darker), then the top with a soft sheen
+  ctx.fillStyle = '#4a2a1f'; roundRect(b.x, front - 1, b.w, cushion + 1, 2); ctx.fill();
+  const g = ctx.createLinearGradient(0, top, 0, front);
+  g.addColorStop(0, '#7a4630'); g.addColorStop(0.5, '#6b3c29'); g.addColorStop(1, '#5c3323');
+  ctx.fillStyle = g; roundRect(b.x, top, b.w, front - top + 0.5, 2.4); ctx.fill();
+  // tufting: diamond creases with a button at each point
+  const cols = Math.max(3, Math.round(b.w / 14)), rows = 2;
+  const pts = [];
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols - (r % 2); c++) {
+    const fx = (c + 0.5 + (r % 2) * 0.5) / cols, fy = (r + 0.5) / rows;
+    pts.push({ x: b.x + 3 + fx * (b.w - 6), y: top + 1 + fy * (front - top - 2) });
+  }
+  ctx.strokeStyle = 'rgba(40, 18, 10, .35)'; ctx.lineWidth = 0.4;
+  for (const p of pts) for (const q of pts) {
+    if (q.y > p.y && Math.abs(q.x - p.x) < (b.w - 6) / cols * 0.6) { ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke(); }
+  }
+  for (const p of pts) {
+    ctx.fillStyle = 'rgba(255, 220, 190, .18)'; ctx.beginPath(); ctx.ellipse(p.x - 2.5, p.y - 0.6, 2.2, 0.9, 0, 0, Math.PI * 2); ctx.fill();   // puffy sheen
+    ctx.fillStyle = '#3a2016'; ctx.beginPath(); ctx.arc(p.x, p.y, 0.7, 0, Math.PI * 2); ctx.fill();                                      // button
+  }
+  // piping along the top edge
+  ctx.strokeStyle = '#3f2419'; ctx.lineWidth = 0.7;
+  roundRect(b.x + 0.3, top + 0.3, b.w - 0.6, front - top, 2.2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 230, 200, .22)'; ctx.fillRect(b.x + 3, top + 0.5, b.w - 6, 0.5);
+}
+// A gallery bench: slatted wooden seat on dark legs, with a soft shadow underneath.
+function drawWoodBench(b) {
+  const seatZ = b.h + 3, thick = 2.4, legW = 2.6, inset = 7;
+  // shadow on the floor
+  ctx.fillStyle = 'rgba(40, 30, 20, .09)';
+  roundRect(b.x + 2, sy(b.y + 3), b.w - 4, (b.d + 1) * K, 3); ctx.fill();
+  // legs: back pair first (mostly hidden), then a low stretcher, then the front pair
+  ctx.fillStyle = '#2f2722';
+  for (const lx of [b.x + inset, b.x + b.w - inset - legW]) ctx.fillRect(lx, sy(b.y + 2, seatZ), legW, sy(b.y + 2) - sy(b.y + 2, seatZ));
+  ctx.fillStyle = '#3b312a';
+  ctx.fillRect(b.x + inset, sy(b.y + b.d - 2, 3.2), b.w - inset * 2, 1.1);
+  for (const lx of [b.x + inset, b.x + b.w - inset - legW]) {
+    ctx.fillRect(lx, sy(b.y + b.d - 2, seatZ - thick), legW, sy(b.y + b.d - 2) - sy(b.y + b.d - 2, seatZ - thick));
+    ctx.fillStyle = '#1f1a17'; ctx.fillRect(lx - 0.3, sy(b.y + b.d - 2) - 0.8, legW + 0.6, 0.8);   // little feet
+    ctx.fillStyle = '#3b312a';
+  }
+  // seat: three planks with gaps and a little wood grain
+  const planks = 3, gap = 0.9, pd = (b.d - gap * (planks - 1)) / planks;
+  const woods = ['#8f6644', '#875e3d', '#93694a'];   // a slightly darker walnut
+  for (let i = 0; i < planks; i++) {
+    const py = b.y + i * (pd + gap);
+    const y0 = sy(py, seatZ), y1 = sy(py + pd, seatZ);
+    ctx.fillStyle = woods[i]; ctx.fillRect(b.x, y0, b.w, y1 - y0);
+    ctx.strokeStyle = 'rgba(110, 72, 40, .28)'; ctx.lineWidth = 0.35;
+    for (let g = 0; g < 3; g++) {
+      const gy = y0 + (y1 - y0) * (0.25 + g * 0.25), wob = ((i * 7 + g * 3) % 5) - 2;
+      ctx.beginPath(); ctx.moveTo(b.x + 3 + g * 9, gy); ctx.bezierCurveTo(b.x + b.w * 0.35, gy + wob * 0.15, b.x + b.w * 0.65, gy - wob * 0.15, b.x + b.w - 4 - g * 6, gy); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255, 240, 215, .25)'; ctx.fillRect(b.x, y0, b.w, 0.45);                  // light catching each plank
+    if (i < planks - 1) { ctx.fillStyle = '#3e2b1f'; ctx.fillRect(b.x, y1, b.w, sy(py + pd + gap, seatZ) - y1); }   // gap
+  }
+  // front edge of the seat, with rounded ends
+  const yFront = sy(b.y + b.d, seatZ);
+  ctx.fillStyle = '#6a4a31'; roundRect(b.x, yFront, b.w, thick, 0.8); ctx.fill();
+  ctx.fillStyle = 'rgba(0, 0, 0, .12)'; ctx.fillRect(b.x, yFront + thick - 0.6, b.w, 0.6);
+  ctx.strokeStyle = 'rgba(70, 45, 25, .45)'; ctx.lineWidth = 0.5;
+  ctx.strokeRect(b.x, sy(b.y, seatZ), b.w, yFront + thick - sy(b.y, seatZ));
+}
 function drawFurniture(b) {
   if (b.kind === 'pedestal') return drawBox(b, '#f1ede6', '#d6cfc3', 'rgba(60, 40, 20, .35)');
   if (b.kind === 'plaque') {
@@ -896,7 +972,7 @@ function drawFurniture(b) {
     drawSpaced('The Miniature Museum', b.x + b.w / 2, (yFront + yBase) / 2 + 1, 0.6);
     return;
   }
-  if (b.kind === 'bench') drawBox(b, '#b08a64', '#8f6c4c', 'rgba(60, 40, 20, .4)');
+  if (b.kind === 'bench') drawBench(b);
   else drawBox(b, '#f8f4ec', '#d9cfbf', 'rgba(60, 40, 20, .35)');
 }
 // Leaves bend away from the cursor (and from visitors brushing past), then spring back.
