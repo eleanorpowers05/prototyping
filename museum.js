@@ -832,7 +832,7 @@ const ROOM_LOOKS = {
   impressionism: { floor: 'stone',      wall: { face: '#d8cbab', base: '#b59a73', baseH: 4, trim: '#b59a73' } }, // soft wheat with oak trim, stone
   okeeffe:       { floor: 'planks',     wall: WHITE_WALL },                                                     // white, wide pale planks
   modern:        { floor: 'concrete',   wall: WHITE_WALL },                                                     // white, polished concrete
-  japanese:      { floor: 'herringbone', wall: { face: '#715955', base: '#8c917f', baseH: 16, rail: '#5a4643' } }, // mauve over gray-green, herringbone
+  japanese:      { floor: 'herringbone', wall: { face: '#715955', base: '#5f4945', baseH: 3 } },              // solid mauve, herringbone
   american:      { floor: 'planks',     wall: WHITE_WALL },                                                     // white, wide pale planks
 };
 let floorCache = null;
@@ -855,16 +855,16 @@ function drawRoomFloor(g, r, style) {
       g.strokeStyle = 'rgba(90, 60, 35, .12)'; g.lineWidth = 0.5; g.strokeRect(x, y, S, S);
     }
   } else if (style === 'stone') {                    // large pale slabs, staggered
-    const SW = 48, SH = 26, stones = ['#e8e0d2', '#e3dacb', '#ece5d8', '#e0d6c6'];
+    const SW = 48, SH = 26, stones = ['#e8e1d4', '#e6dfd1', '#eae3d6', '#e5ddcf'];
     for (let y = y0, j = 0; y < y1; y += SH, j++) {
       for (let x = x0 - (j % 2) * SW / 2, i = 0; x < x1; x += SW, i++) {
         g.fillStyle = pickC(stones, i, j); g.fillRect(x, y, SW, SH);
-        g.fillStyle = 'rgba(150, 130, 105, .08)'; g.fillRect(x + hash(i, j) * SW * 0.5, y + hash(j, i) * SH, SW * 0.4, 0.8);   // veins
-        g.strokeStyle = 'rgba(140, 125, 100, .28)'; g.lineWidth = 0.7; g.strokeRect(x, y, SW, SH);
+        g.fillStyle = 'rgba(150, 130, 105, .05)'; g.fillRect(x + hash(i, j) * SW * 0.5, y + hash(j, i) * SH, SW * 0.4, 0.8);   // veins
+        g.strokeStyle = 'rgba(140, 125, 100, .13)'; g.lineWidth = 0.6; g.strokeRect(x, y, SW, SH);
       }
     }
   } else if (style === 'planks') {                   // wide, pale, low-color boards
-    const BW = 20, woods = ['#e6dccd', '#e1d6c5', '#e9e0d2', '#ddd1be', '#e4d9c9'];
+    const BW = 20, woods = ['#e6ddcf', '#e4dacb', '#e8dfd2', '#e2d8c8', '#e5dccd'];
     for (let y = y0, row = 0; y < y1; y += BW, row++) {
       let x = x0 - hash(row, 5) * 160;
       for (let k = 0; x < x1; k++) {
@@ -872,19 +872,19 @@ function drawRoomFloor(g, r, style) {
         g.fillStyle = pickC(woods, k, row); g.fillRect(x, y, len, BW);
         g.strokeStyle = 'rgba(140, 115, 90, .08)'; g.lineWidth = 0.6;
         g.beginPath(); g.moveTo(x + 6, y + BW * 0.45); g.lineTo(x + len - 6, y + BW * 0.45 + (hash(k, row) - 0.5) * 2); g.stroke();
-        g.fillStyle = 'rgba(120, 100, 80, .22)'; g.fillRect(x, y, 0.8, BW);
+        g.fillStyle = 'rgba(120, 100, 80, .12)'; g.fillRect(x, y, 0.7, BW);
         x += len;
       }
-      g.fillStyle = 'rgba(120, 100, 80, .18)'; g.fillRect(x0, y, x1 - x0, 0.8);
+      g.fillStyle = 'rgba(120, 100, 80, .1)'; g.fillRect(x0, y, x1 - x0, 0.7);
     }
   } else if (style === 'concrete') {                 // pale polished concrete with soft mottling and a few seams
     g.fillStyle = '#dbdad6'; g.fillRect(x0, y0, x1 - x0, y1 - y0);
     for (let k = 0; k < 260; k++) {
       const cx = x0 + hash(k, 1) * (x1 - x0), cy = y0 + hash(k, 2) * (y1 - y0), rr = 6 + hash(k, 3) * 18;
-      g.fillStyle = hash(k, 4) > 0.5 ? 'rgba(255, 255, 255, .035)' : 'rgba(120, 118, 112, .025)';
+      g.fillStyle = hash(k, 4) > 0.5 ? 'rgba(255, 255, 255, .018)' : 'rgba(120, 118, 112, .012)';
       g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.fill();
     }
-    g.strokeStyle = 'rgba(120, 120, 115, .22)'; g.lineWidth = 0.8; g.beginPath();
+    g.strokeStyle = 'rgba(120, 120, 115, .12)'; g.lineWidth = 0.6; g.beginPath();
     for (let x = x0 + 140; x < x1; x += 140) { g.moveTo(x, y0); g.lineTo(x, y1); }
     for (let y = y0 + 120; y < y1; y += 120) { g.moveTo(x0, y); g.lineTo(x1, y); }
     g.stroke();
