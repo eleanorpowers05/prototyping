@@ -827,8 +827,8 @@ const GALLERY_FLOOR = 'looks';     // 'looks' = each room's own wall + floor pai
 // Each gallery gets a wall color and floor, inspired by real museums.
 const WHITE_WALL = { face: '#f7f5f0', base: '#e9e5dc', baseH: 3 };
 const ROOM_LOOKS = {
-  oldmasters:    { floor: 'versailles', wall: { face: '#b9c8cf', base: '#f6f3ec', baseH: 5 } },               // pale blue, Versailles parquet
-  impressionism: { floor: 'stone',      wall: { face: '#d9b66c', base: '#b5864f', baseH: 4, trim: '#b5864f' } }, // ochre with oak trim, stone
+  oldmasters:    { floor: 'versailles', wall: { face: '#8e5a52', base: '#f3efe7', baseH: 5 } },               // claret red, Versailles parquet
+  impressionism: { floor: 'stone',      wall: { face: '#d8cbab', base: '#b59a73', baseH: 4, trim: '#b59a73' } }, // soft wheat with oak trim, stone
   okeeffe:       { floor: 'planks',     wall: WHITE_WALL },                                                     // white, wide pale planks
   modern:        { floor: 'concrete',   wall: WHITE_WALL },                                                     // white, polished concrete
   japanese:      { floor: 'herringbone', wall: { face: '#715955', base: '#8c917f', baseH: 16, rail: '#5a4643' } }, // mauve over gray-green, herringbone
