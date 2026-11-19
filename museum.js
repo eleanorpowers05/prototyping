@@ -14,7 +14,7 @@ const ROOMS = [
   { id: 'okeeffe',       x0: 1000, y0: 0,   x1: W,    y1: ROW, floor: '#efe3d2' },
   { id: 'modern',        x0: 0,    y0: ROW, x1: 420,  y1: D,   floor: '#ebe6de' },
   { id: 'lobby',         x0: 420,  y0: ROW, x1: 880,  y1: D,   floor: '#f3eee6', name: 'Lobby' },
-  { id: 'japanese',      x0: 880,  y0: ROW, x1: 1200, y1: D,   floor: '#e9dfcf' },
+  { id: 'japanese',      x0: 880,  y0: ROW, x1: 1200, y1: D,   floor: '#e9dfcf', dark: true },
   { id: 'american',      x0: 1200, y0: ROW, x1: W,    y1: D,   floor: '#e7dac6' },
 ];
 const roomById = Object.fromEntries(ROOMS.map((r) => [r.id, r]));
@@ -227,6 +227,19 @@ function viewingSpot(room) {
   }
   return { x: p.cx, y: p.faceY + 40, facing: p };
 }
+// Benches have three seats. Solo visitors sometimes sit for a while.
+const SEATS = furniture.filter((b) => b.kind === 'bench').flatMap((b) => [0, 1, 2].map((i) => ({
+  bench: b, x: b.x + (b.w * (i + 0.5)) / 3, y: b.y + b.d * 0.7, frontY: b.y + b.d + 8, z: b.h + 2, taken: null,
+})));
+function freeSeat(room) {
+  const seats = SEATS.filter((st) => !st.taken && roomAt(st.x, st.y) === room);
+  return seats.length ? pick(seats) : null;
+}
+function standUp(v) {
+  const seat = v.sitting;
+  seat.taken = null; v.sitting = null;
+  v.y = seat.frontY; v.vx = v.vy = 0;
+}
 // A point just inside room r next to door d, so walkers line up before passing through.
 const inward = (d, r) => (d.o === 'h' ? { x: d.x, y: d.y + (r.y0 < d.y ? -26 : 26) } : { x: d.x + (r.x0 < d.x ? -26 : 26), y: d.y });
 function planNext(v) {
@@ -238,6 +251,10 @@ function planNext(v) {
     return;
   }
   if (!room) { v.path.push({ x: LOBBY_X, y: 760 }); return; }
+  if (!v.trail && room.id !== 'lobby' && Math.random() < 0.12) {          // take a seat on the bench
+    const seat = freeSeat(room);
+    if (seat) { seat.taken = v; v.path.push({ x: seat.x, y: seat.frontY, sit: seat }); return; }
+  }
   const doors = DOORS.filter((d) => d.a === room.id || d.b === room.id);
   if (doors.length && Math.random() < 0.28) {
     // rooms with crowd favorites are a little more tempting
@@ -478,6 +495,15 @@ function updatePeople(dt) {
   for (const v of people) {
     let ax = 0, ay = 0;
     const startRoom = roomAt(v.x, v.y);
+    if (v.sitting) {
+      // jump up if the cursor or the runaway statue comes close; otherwise sit until it's time to go
+      const near = (mouse && Math.hypot(v.x - mouse.x, v.y - mouse.y) < REPEL_R * 0.8) ||
+        (statue.state === 'run' && Math.hypot(v.x - statue.x, v.y - statue.y) < 70);
+      v.wait -= dt;
+      if (near) { standUp(v); v.wait = 0; v.path = []; }
+      else if (v.wait <= 0) { standUp(v); planNext(v); }
+      else continue;
+    }
     if (v.say && (v.say.t -= dt) <= 0) v.say = null;
     if (v.trail) recordTrail(v);
     if (v.leader) {
@@ -492,6 +518,10 @@ function updatePeople(dt) {
       const dx = t.x - v.x, dy = t.y - v.y, dist = Math.hypot(dx, dy);
       if (dist < (v.path.length > 1 ? 12 : 6)) {   // pass through in-between points without stopping
         v.path.shift();
+        if (!v.path.length && t.sit) {
+          // sit down: settle onto the seat
+          if (t.sit.taken === v) { v.sitting = t.sit; v.x = t.sit.x; v.y = t.sit.y; v.vx = v.vy = 0; v.wait = rand(6, 15); continue; }
+        }
         if (!v.path.length) {
           v.wait = v.guard ? (v.chasing ? 0 : rand(6, 14)) : t.facing && FAVORITES.has(t.facing.id) ? rand(8, 18) : rand(2, 9);
           if (v.scold) { v.scold = false; v.say = { text: 'No flash!', t: 2.4 }; v.wait = 3; }  // then planNext walks them back
@@ -574,6 +604,8 @@ function updatePeople(dt) {
     v.x += v.vx * dt; v.y += v.vy * dt;
     collide(v);
 
+    // Lost their seat plan (e.g. scared off on the way)? Free the seat.
+    for (const st of SEATS) if (st.taken === v && !v.sitting && !(v.path[v.path.length - 1] || {}).sit) st.taken = null;
     // Pushed into a different room? Make a fresh plan from where they ended up.
     const endRoom = roomAt(v.x, v.y);
     if (fleeing && endRoom !== startRoom) { v.path = []; v.wait = rand(0.5, 2); }
@@ -789,20 +821,69 @@ function roundRect(x, y, w, h, r) {
   ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
   ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
 }
-function drawFloor() {
+// Floors are drawn once into an image: pale stone tiles in the lobby; the galleries use their own
+// floor colors ('plain'), or wooden boards ('wood': pale ash, medium brown in the Japanese room).
+const GALLERY_FLOOR = 'plain';
+let floorCache = null;
+const hash = (i, j) => { const v = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453; return v - Math.floor(v); };
+const OAK = ['#efe8dd', '#ebe3d6', '#f2ece2', '#e7dfd1', '#eee6da', '#e9e1d4'];   // pale natural ash, barely warm
+const WALNUT = ['#86684f', '#7f624a', '#8c6d54', '#795c45', '#89694f', '#82654c'];   // medium brown (Japanese room)
+function buildFloor() {
+  const scale = 2;                                   // pixels per floor unit in the cached image
+  const c = document.createElement('canvas');
+  c.width = W * scale; c.height = Math.round(D * K * scale);
+  const g = c.getContext('2d');
+  g.scale(scale, scale);
+  const Y = (y) => y * K;
   for (const r of ROOMS) {
-    ctx.fillStyle = r.floor;
-    ctx.fillRect(r.x0, sy(r.y0), r.x1 - r.x0, (r.y1 - r.y0) * K);
-    ctx.strokeStyle = 'rgba(90, 60, 30, .07)'; ctx.lineWidth = 1;
-    ctx.beginPath();
+    g.save();
+    g.beginPath(); g.rect(r.x0, Y(r.y0), r.x1 - r.x0, Y(r.y1) - Y(r.y0)); g.clip();
     if (r.id === 'lobby') {
-      for (let x = r.x0; x < r.x1; x += 40) { ctx.moveTo(x, sy(r.y0)); ctx.lineTo(x, sy(r.y1)); }
-      for (let y = r.y0; y < r.y1; y += 40) { ctx.moveTo(r.x0, sy(y)); ctx.lineTo(r.x1, sy(y)); }
+      const T = 40;
+      for (let y = r.y0, j = 0; y < r.y1; y += T, j++) for (let x = r.x0, i = 0; x < r.x1; x += T, i++) {
+        g.fillStyle = (i + j) % 2 ? '#f2eee7' : '#eee9e0';
+        g.fillRect(x, Y(y), T, Y(y + T) - Y(y));
+        g.fillStyle = `rgba(150, 135, 115, ${0.04 + hash(i, j) * 0.05})`;           // faint veining
+        g.fillRect(x + hash(j, i) * T * 0.6, Y(y) + hash(i + 3, j) * 8, T * 0.4, 0.6);
+      }
+      g.strokeStyle = 'rgba(140, 120, 95, .22)'; g.lineWidth = 0.6;
+      g.beginPath();
+      for (let x = r.x0; x <= r.x1; x += T) { g.moveTo(x, Y(r.y0)); g.lineTo(x, Y(r.y1)); }
+      for (let y = r.y0; y <= r.y1; y += T) { g.moveTo(r.x0, Y(y)); g.lineTo(r.x1, Y(y)); }
+      g.stroke();
+    } else if (GALLERY_FLOOR === 'plain') {
+      g.fillStyle = r.floor; g.fillRect(r.x0, Y(r.y0), r.x1 - r.x0, Y(r.y1) - Y(r.y0));
+      g.strokeStyle = 'rgba(90, 60, 30, .07)'; g.lineWidth = 1;
+      g.beginPath();
+      for (let y = r.y0 + 22; y < r.y1; y += 22) { g.moveTo(r.x0, Y(y)); g.lineTo(r.x1, Y(y)); }
+      g.stroke();
     } else {
-      for (let y = r.y0 + 22; y < r.y1; y += 22) { ctx.moveTo(r.x0, sy(y)); ctx.lineTo(r.x1, sy(y)); }
+      const BOARD = 16;                                // board width (rows run east-west)
+      for (let y = r.y0, row = 0; y < r.y1; y += BOARD, row++) {
+        let x = r.x0 - hash(row, r.x0) * 90;           // stagger where boards start on each row
+        for (let k = 0; x < r.x1; k++) {
+          const len = 70 + hash(row, k) * 90;
+          const woods = r.dark ? WALNUT : OAK;
+          g.fillStyle = woods[Math.floor(hash(k, row + 17) * woods.length)];
+          g.fillRect(x, Y(y), len, Y(y + BOARD) - Y(y));
+          g.strokeStyle = r.dark ? 'rgba(40, 20, 10, .16)' : 'rgba(140, 115, 90, .07)'; g.lineWidth = 0.4;   // a little grain
+          for (let q = 0; q < 2; q++) {
+            const gy = Y(y) + (Y(y + BOARD) - Y(y)) * (0.3 + q * 0.4);
+            g.beginPath(); g.moveTo(x + 4, gy); g.lineTo(x + len - 4, gy + (hash(k, q) - 0.5)); g.stroke();
+          }
+          g.fillStyle = r.dark ? 'rgba(30, 15, 8, .35)' : 'rgba(120, 100, 80, .2)'; g.fillRect(x, Y(y), 0.6, Y(y + BOARD) - Y(y));   // board end
+          x += len;
+        }
+        g.fillStyle = r.dark ? 'rgba(30, 15, 8, .32)' : 'rgba(120, 100, 80, .17)'; g.fillRect(r.x0, Y(y), r.x1 - r.x0, 0.6);   // seam between rows
+      }
     }
-    ctx.stroke();
+    g.restore();
   }
+  return { canvas: c };
+}
+function drawFloor() {
+  if (!floorCache) floorCache = buildFloor();
+  ctx.drawImage(floorCache.canvas, 0, sy(0), W, D * K);
   // Doormat at the entrance
   ctx.fillStyle = '#c9b79c';
   ctx.fillRect(ENTRANCE.x0 + 8, sy(D - 40), ENTRANCE.x1 - ENTRANCE.x0 - 16, 26 * K);
@@ -822,6 +903,7 @@ function drawFloor() {
     const name = r.name || galleries.find((g) => g.id === r.id)?.name;
     if (!name) continue;
     const y = r.id === 'lobby' ? r.y1 - 90 : (r.y0 + r.y1) / 2 + 62;
+    ctx.fillStyle = r.dark && GALLERY_FLOOR === 'wood' ? 'rgba(255, 240, 220, .55)' : 'rgba(70, 50, 30, .5)';   // light lettering on a dark floor
     drawSpaced(name.toUpperCase(), (r.x0 + r.x1) / 2, sy(y), LABEL_SPACING);
   }
 }
@@ -1094,10 +1176,20 @@ function drawPlantShape(p) {
   }
 }
 function drawPerson(v) {
-  const x = v.x, y = sy(v.y), s = v.size;
+  const s = v.size, x = v.x;
+  const y = sy(v.y) - (v.sitting ? v.sitting.z - 1 + 2 * s : 0);    // seated people sit on top of the cushion
   const bob = v.moving ? Math.abs(Math.sin(v.phase)) * 1.3 : 0;
-  ctx.fillStyle = 'rgba(40, 30, 20, .17)';
-  ctx.beginPath(); ctx.ellipse(x, y, 5.5 * s, 2.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+  if (!v.sitting) {
+    ctx.fillStyle = 'rgba(40, 30, 20, .17)';
+    ctx.beginPath(); ctx.ellipse(x, y, 5.5 * s, 2.5 * s, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // legs hanging over the front of the cushion
+    ctx.fillStyle = '#3a322c';
+    roundRect(x - 3.2 * s, y - 2 * s, 2.5 * s, 6.5 * s, 1.1 * s); ctx.fill();
+    roundRect(x + 0.7 * s, y - 2 * s, 2.5 * s, 6.5 * s, 1.1 * s); ctx.fill();
+    ctx.fillStyle = '#211c19';
+    ctx.fillRect(x - 3.4 * s, y + 3.6 * s, 2.9 * s, 1.2 * s); ctx.fillRect(x + 0.5 * s, y + 3.6 * s, 2.9 * s, 1.2 * s);   // shoes
+  }
   ctx.fillStyle = v.body; roundRect(x - 3.8 * s, y - (11 + bob) * s, 7.6 * s, 10 * s, 3.6 * s); ctx.fill();
   const hy = y - (14.6 + bob) * s;
   const hx = x + (v.kissing ? v.kissDir * 1.4 * s : 0);           // lean in for a kiss
@@ -1159,7 +1251,7 @@ function drawOverlays() {
 let hovered = null;
 function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#e9e2d6'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);     // transparent: the page background (--bg in styles.css) shows through
   ctx.setTransform(dpr * cam.s, 0, 0, dpr * cam.s, dpr * cam.ox, dpr * cam.oy);
 
   // Building shadow
@@ -1172,7 +1264,7 @@ function draw() {
   for (const p of paintings) list.push([p.faceY, 1, () => drawPainting(p, p === hovered)]);
   for (const b of furniture) list.push([b.y + b.d, 0, () => drawFurniture(b)]);
   for (const p of plants) list.push([p.y, 2, () => drawPlant(p)]);
-  for (const v of people) list.push([v.y, 2, () => drawPerson(v)]);
+  for (const v of people) list.push([v.sitting ? v.sitting.bench.y + v.sitting.bench.d + 0.2 : v.y, 2, () => drawPerson(v)]);
   list.push([statue.state === 'run' ? statue.y : Math.max(statue.y, PEDESTAL.y + PEDESTAL.d) + 0.1, 3, drawStatue]);
   list.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   for (const [, , fn] of list) fn();
