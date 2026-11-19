@@ -17,7 +17,7 @@
   font-display: swap;
 }
 :root {
-  --bg: #e9e2d6;
+  --bg: #b9c8cf;   /* pale gallery blue */
   --ink: #2e2722;
   --muted: #7b7067;
   --panel: rgba(255, 252, 246, .94);

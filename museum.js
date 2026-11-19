@@ -823,11 +823,83 @@ function roundRect(x, y, w, h, r) {
 }
 // Floors are drawn once into an image: pale stone tiles in the lobby; the galleries use their own
 // floor colors ('plain'), or wooden boards ('wood': pale ash, medium brown in the Japanese room).
-const GALLERY_FLOOR = 'plain';
+const GALLERY_FLOOR = 'looks';     // 'looks' = each room's own wall + floor pairing (ROOM_LOOKS)
+// Each gallery gets a wall color and floor, inspired by real museums.
+const WHITE_WALL = { face: '#f7f5f0', base: '#e9e5dc', baseH: 3 };
+const ROOM_LOOKS = {
+  oldmasters:    { floor: 'versailles', wall: { face: '#b9c8cf', base: '#f6f3ec', baseH: 5 } },               // pale blue, Versailles parquet
+  impressionism: { floor: 'stone',      wall: { face: '#d9b66c', base: '#b5864f', baseH: 4, trim: '#b5864f' } }, // ochre with oak trim, stone
+  okeeffe:       { floor: 'planks',     wall: WHITE_WALL },                                                     // white, wide pale planks
+  modern:        { floor: 'concrete',   wall: WHITE_WALL },                                                     // white, polished concrete
+  japanese:      { floor: 'herringbone', wall: { face: '#715955', base: '#8c917f', baseH: 16, rail: '#5a4643' } }, // mauve over gray-green, herringbone
+  american:      { floor: 'planks',     wall: WHITE_WALL },                                                     // white, wide pale planks
+};
 let floorCache = null;
 const hash = (i, j) => { const v = Math.sin(i * 12.9898 + j * 78.233) * 43758.5453; return v - Math.floor(v); };
 const OAK = ['#efe8dd', '#ebe3d6', '#f2ece2', '#e7dfd1', '#eee6da', '#e9e1d4'];   // pale natural ash, barely warm
 const WALNUT = ['#86684f', '#7f624a', '#8c6d54', '#795c45', '#89694f', '#82654c'];   // medium brown (Japanese room)
+function drawRoomFloor(g, r, style) {
+  const { x0, y0, x1, y1 } = r;
+  const pickC = (list, a, b) => list[Math.floor(hash(a, b) * list.length)];
+  if (style === 'versailles') {                      // squares of framed diagonal lattice
+    const S = 40, woods = ['#dcc6a6', '#d6bf9d', '#e0caab', '#d2b996'];
+    for (let y = y0, j = 0; y < y1; y += S, j++) for (let x = x0, i = 0; x < x1; x += S, i++) {
+      g.fillStyle = pickC(woods, i, j); g.fillRect(x, y, S, S);
+      g.fillStyle = 'rgba(255, 245, 225, .12)';      // alternate triangles catch the light
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + S / 2, y + S / 2); g.lineTo(x + S, y); g.fill();
+      g.beginPath(); g.moveTo(x, y + S); g.lineTo(x + S / 2, y + S / 2); g.lineTo(x + S, y + S); g.fill();
+      g.strokeStyle = 'rgba(120, 85, 50, .18)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x + 3, y + 3); g.lineTo(x + S - 3, y + S - 3); g.moveTo(x + S - 3, y + 3); g.lineTo(x + 3, y + S - 3); g.stroke();
+      g.strokeStyle = 'rgba(160, 125, 85, .55)'; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, S - 2, S - 2);   // the frame
+      g.strokeStyle = 'rgba(90, 60, 35, .22)'; g.lineWidth = 0.5; g.strokeRect(x, y, S, S);
+    }
+  } else if (style === 'stone') {                    // large pale slabs, staggered
+    const SW = 48, SH = 26, stones = ['#e8e0d2', '#e3dacb', '#ece5d8', '#e0d6c6'];
+    for (let y = y0, j = 0; y < y1; y += SH, j++) {
+      for (let x = x0 - (j % 2) * SW / 2, i = 0; x < x1; x += SW, i++) {
+        g.fillStyle = pickC(stones, i, j); g.fillRect(x, y, SW, SH);
+        g.fillStyle = 'rgba(150, 130, 105, .08)'; g.fillRect(x + hash(i, j) * SW * 0.5, y + hash(j, i) * SH, SW * 0.4, 0.8);   // veins
+        g.strokeStyle = 'rgba(140, 125, 100, .28)'; g.lineWidth = 0.7; g.strokeRect(x, y, SW, SH);
+      }
+    }
+  } else if (style === 'planks') {                   // wide, pale, low-color boards
+    const BW = 20, woods = ['#e6dccd', '#e1d6c5', '#e9e0d2', '#ddd1be', '#e4d9c9'];
+    for (let y = y0, row = 0; y < y1; y += BW, row++) {
+      let x = x0 - hash(row, 5) * 160;
+      for (let k = 0; x < x1; k++) {
+        const len = 120 + hash(row, k) * 110;
+        g.fillStyle = pickC(woods, k, row); g.fillRect(x, y, len, BW);
+        g.strokeStyle = 'rgba(140, 115, 90, .08)'; g.lineWidth = 0.6;
+        g.beginPath(); g.moveTo(x + 6, y + BW * 0.45); g.lineTo(x + len - 6, y + BW * 0.45 + (hash(k, row) - 0.5) * 2); g.stroke();
+        g.fillStyle = 'rgba(120, 100, 80, .22)'; g.fillRect(x, y, 0.8, BW);
+        x += len;
+      }
+      g.fillStyle = 'rgba(120, 100, 80, .18)'; g.fillRect(x0, y, x1 - x0, 0.8);
+    }
+  } else if (style === 'concrete') {                 // pale polished concrete with soft mottling and a few seams
+    g.fillStyle = '#dbdad6'; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    for (let k = 0; k < 260; k++) {
+      const cx = x0 + hash(k, 1) * (x1 - x0), cy = y0 + hash(k, 2) * (y1 - y0), rr = 6 + hash(k, 3) * 18;
+      g.fillStyle = hash(k, 4) > 0.5 ? 'rgba(255, 255, 255, .035)' : 'rgba(120, 118, 112, .025)';
+      g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.fill();
+    }
+    g.strokeStyle = 'rgba(120, 120, 115, .22)'; g.lineWidth = 0.8; g.beginPath();
+    for (let x = x0 + 140; x < x1; x += 140) { g.moveTo(x, y0); g.lineTo(x, y1); }
+    for (let y = y0 + 120; y < y1; y += 120) { g.moveTo(x0, y); g.lineTo(x1, y); }
+    g.stroke();
+  } else if (style === 'herringbone') {              // zig-zag boards, a darker warm wood
+    const CW = 10, BS = 5, woods = ['#a98058', '#a07853', '#b0885f', '#9a724d', '#a67d56'];
+    for (let x = x0, i = 0; x < x1; x += CW, i++) {
+      const dir = i % 2 ? 1 : -1;
+      for (let y = y0 - CW, j = 0; y < y1 + CW; y += BS, j++) {
+        const a = dir > 0 ? 0 : -CW, b = dir > 0 ? -CW : 0;
+        g.fillStyle = pickC(woods, i, j);
+        g.beginPath(); g.moveTo(x, y + a); g.lineTo(x + CW, y + b); g.lineTo(x + CW, y + b + BS); g.lineTo(x, y + a + BS); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(55, 32, 18, .3)'; g.lineWidth = 0.5; g.stroke();
+      }
+    }
+  }
+}
 function buildFloor() {
   const scale = 2;                                   // pixels per floor unit in the cached image
   const c = document.createElement('canvas');
@@ -851,6 +923,10 @@ function buildFloor() {
       for (let x = r.x0; x <= r.x1; x += T) { g.moveTo(x, Y(r.y0)); g.lineTo(x, Y(r.y1)); }
       for (let y = r.y0; y <= r.y1; y += T) { g.moveTo(r.x0, Y(y)); g.lineTo(r.x1, Y(y)); }
       g.stroke();
+    } else if (GALLERY_FLOOR === 'looks' && ROOM_LOOKS[r.id]) {
+      g.save(); g.scale(1, K);                         // draw in floor units; the squash gives the angle
+      drawRoomFloor(g, r, ROOM_LOOKS[r.id].floor);
+      g.restore();
     } else if (GALLERY_FLOOR === 'plain') {
       g.fillStyle = r.floor; g.fillRect(r.x0, Y(r.y0), r.x1 - r.x0, Y(r.y1) - Y(r.y0));
       g.strokeStyle = 'rgba(90, 60, 30, .07)'; g.lineWidth = 1;
@@ -903,7 +979,8 @@ function drawFloor() {
     const name = r.name || galleries.find((g) => g.id === r.id)?.name;
     if (!name) continue;
     const y = r.id === 'lobby' ? r.y1 - 90 : (r.y0 + r.y1) / 2 + 62;
-    ctx.fillStyle = r.dark && GALLERY_FLOOR === 'wood' ? 'rgba(255, 240, 220, .55)' : 'rgba(70, 50, 30, .5)';   // light lettering on a dark floor
+    const darkFloor = (r.dark && GALLERY_FLOOR === 'wood') || (GALLERY_FLOOR === 'looks' && ROOM_LOOKS[r.id]?.floor === 'herringbone');
+    ctx.fillStyle = darkFloor ? 'rgba(255, 244, 228, .75)' : 'rgba(60, 42, 25, .62)';   // light lettering on a dark floor
     drawSpaced(name.toUpperCase(), (r.x0 + r.x1) / 2, sy(y), LABEL_SPACING);
   }
 }
@@ -926,6 +1003,21 @@ function drawBox(b, top, face, edge) {
 }
 function drawWall(b) {
   drawBox(b, '#fffdf8', '#f1eadf', 'rgba(120, 100, 80, .35)');
+  if (GALLERY_FLOOR !== 'looks' || b.w <= b.d) return;
+  // paint the part of this wall's face that belongs to each room in that room's color
+  const faceY = b.y + b.d;
+  for (const r of ROOMS) {
+    const look = ROOM_LOOKS[r.id];
+    if (!look || (r.y0 === 0 ? T : ROW + T / 2) !== faceY) continue;
+    const xa = Math.max(b.x, r.x0 + T / 2), xb = Math.min(b.x + b.w, r.x1 - T / 2);
+    if (xb <= xa) continue;
+    const w = look.wall, top = sy(faceY, b.h), bottom = sy(faceY);
+    ctx.fillStyle = w.face; ctx.fillRect(xa, top, xb - xa, bottom - top);
+    if (w.trim) { ctx.fillStyle = w.trim; ctx.fillRect(xa, top, xb - xa, 2.2); }                              // crown trim
+    if (w.rail) { ctx.fillStyle = w.rail; ctx.fillRect(xa, sy(faceY, w.baseH + 1.5), xb - xa, 1.5); }          // chair rail
+    ctx.fillStyle = w.base; ctx.fillRect(xa, sy(faceY, w.baseH), xb - xa, bottom - sy(faceY, w.baseH));        // baseboard / lower panel
+    ctx.strokeStyle = 'rgba(120, 100, 80, .35)'; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(xa, bottom); ctx.lineTo(xb, bottom); ctx.stroke();
+  }
 }
 function drawPainting(p, hovered) {
   const r = paintingRect(p);
@@ -1041,7 +1133,49 @@ function drawWoodBench(b) {
   ctx.strokeStyle = 'rgba(70, 45, 25, .45)'; ctx.lineWidth = 0.5;
   ctx.strokeRect(b.x, sy(b.y, seatZ), b.w, yFront + thick - sy(b.y, seatZ));
 }
+// Marble busts on white plinths, placed against the wall in gaps between paintings.
+function placeBusts() {
+  const room = roomById.oldmasters, faceY = T;
+  const onWall = paintings.filter((p) => p.room === room).sort((a, b) => a.x0 - b.x0);
+  const edges = [room.x0 + 24, ...onWall.flatMap((p) => [p.x0, p.x1]), room.x1 - 24];
+  const gaps = [];
+  for (let i = 0; i < edges.length; i += 2) gaps.push({ a: edges[i], b: edges[i + 1] });
+  gaps.sort((g1, g2) => (g2.b - g2.a) - (g1.b - g1.a));
+  for (const gp of gaps.slice(0, 2)) {
+    if (gp.b - gp.a < 20) continue;
+    const plinth = { kind: 'plinth', x: (gp.a + gp.b) / 2 - 6, y: faceY + 8, w: 12, d: 10, h: 20 };
+    furniture.push(plinth); solids.push(plinth);
+  }
+}
+let bustSprite = null;
+function makeBustSprite() {
+  const c = document.createElement('canvas'); c.width = 11; c.height = 12;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f5f2ec';
+  g.beginPath(); g.roundRect(1, 7.5, 9, 4.5, 2); g.fill();          // shoulders
+  g.fillRect(4, 5.5, 3, 2.6);                                       // neck
+  g.beginPath(); g.arc(5.5, 3.6, 3.1, 0, Math.PI * 2); g.fill();    // head
+  g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(150, 140, 125, .3)'; g.fillRect(6.2, 0, 6, 12);
+  g.globalCompositeOperation = 'source-over';
+  const img = g.getImageData(0, 0, 11, 12), d = img.data, solid = new Uint8Array(132);
+  for (let i = 0; i < 132; i++) { solid[i] = d[i * 4 + 3] >= 110 ? 1 : 0; d[i * 4 + 3] = solid[i] ? 255 : 0; }
+  for (let y = 0; y < 12; y++) for (let x = 0; x < 11; x++) {
+    const i = y * 11 + x; if (solid[i]) continue;
+    if ((x > 0 && solid[i - 1]) || (x < 10 && solid[i + 1]) || (y > 0 && solid[i - 11]) || (y < 11 && solid[i + 11])) { d[i * 4] = 150; d[i * 4 + 1] = 140; d[i * 4 + 2] = 124; d[i * 4 + 3] = 235; }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+function drawPlinth(b) {
+  drawBox(b, '#fbfaf7', '#ebe8e1', 'rgba(110, 100, 85, .35)');
+  bustSprite = bustSprite || makeBustSprite();
+  const P = 1.45, w = 11 * P, h = 12 * P;
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(bustSprite, b.x + b.w / 2 - w / 2, sy(b.y + b.d * 0.55, b.h) - h + 1, w, h);
+  ctx.imageSmoothingEnabled = true;
+}
 function drawFurniture(b) {
+  if (b.kind === 'plinth') return drawPlinth(b);
   if (b.kind === 'pedestal') return drawBox(b, '#f1ede6', '#d6cfc3', 'rgba(60, 40, 20, .35)');
   if (b.kind === 'plaque') {
     drawBox(b, '#fdfbf6', '#ece5d9', 'rgba(60, 40, 20, .35)');
@@ -1468,6 +1602,7 @@ async function start() {
     $('hint').textContent = "Couldn't load the artworks. Try refreshing.";
   }
   hangPaintings();
+  placeBusts();
   buildGuide();
   spawnPeople(cw < 700 ? 45 : 75);
   spawnGuards();
