@@ -17,7 +17,7 @@
   font-display: swap;
 }
 :root {
-  --bg: #bcd5e7;   /* light blue */
+  --bg: #dbebf5;   /* very light sky blue */
   --ink: #2e2722;
   --muted: #7b7067;
   --panel: rgba(255, 252, 246, .94);
