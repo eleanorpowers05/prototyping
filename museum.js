@@ -842,16 +842,16 @@ function drawRoomFloor(g, r, style) {
   const { x0, y0, x1, y1 } = r;
   const pickC = (list, a, b) => list[Math.floor(hash(a, b) * list.length)];
   if (style === 'versailles') {                      // squares of framed diagonal lattice
-    const S = 40, woods = ['#dcc6a6', '#d6bf9d', '#e0caab', '#d2b996'];
+    const S = 40, woods = ['#dccaae', '#dac8ab', '#decdb1', '#d9c6a9'];
     for (let y = y0, j = 0; y < y1; y += S, j++) for (let x = x0, i = 0; x < x1; x += S, i++) {
       g.fillStyle = pickC(woods, i, j); g.fillRect(x, y, S, S);
-      g.fillStyle = 'rgba(255, 245, 225, .12)';      // alternate triangles catch the light
+      g.fillStyle = 'rgba(255, 245, 225, .06)';      // alternate triangles catch the light
       g.beginPath(); g.moveTo(x, y); g.lineTo(x + S / 2, y + S / 2); g.lineTo(x + S, y); g.fill();
       g.beginPath(); g.moveTo(x, y + S); g.lineTo(x + S / 2, y + S / 2); g.lineTo(x + S, y + S); g.fill();
-      g.strokeStyle = 'rgba(120, 85, 50, .18)'; g.lineWidth = 1;
+      g.strokeStyle = 'rgba(120, 85, 50, .08)'; g.lineWidth = 0.8;
       g.beginPath(); g.moveTo(x + 3, y + 3); g.lineTo(x + S - 3, y + S - 3); g.moveTo(x + S - 3, y + 3); g.lineTo(x + 3, y + S - 3); g.stroke();
-      g.strokeStyle = 'rgba(160, 125, 85, .55)'; g.lineWidth = 2; g.strokeRect(x + 1, y + 1, S - 2, S - 2);   // the frame
-      g.strokeStyle = 'rgba(90, 60, 35, .22)'; g.lineWidth = 0.5; g.strokeRect(x, y, S, S);
+      g.strokeStyle = 'rgba(160, 125, 85, .22)'; g.lineWidth = 1.4; g.strokeRect(x + 1, y + 1, S - 2, S - 2);   // the frame
+      g.strokeStyle = 'rgba(90, 60, 35, .12)'; g.lineWidth = 0.5; g.strokeRect(x, y, S, S);
     }
   } else if (style === 'stone') {                    // large pale slabs, staggered
     const SW = 48, SH = 26, stones = ['#e8e0d2', '#e3dacb', '#ece5d8', '#e0d6c6'];
@@ -888,14 +888,14 @@ function drawRoomFloor(g, r, style) {
     for (let y = y0 + 120; y < y1; y += 120) { g.moveTo(x0, y); g.lineTo(x1, y); }
     g.stroke();
   } else if (style === 'herringbone') {              // zig-zag boards, a darker warm wood
-    const CW = 10, BS = 5, woods = ['#a98058', '#a07853', '#b0885f', '#9a724d', '#a67d56'];
+    const CW = 8, BS = 4, woods = ['#a7805b', '#a47d58', '#aa835e', '#a17a56', '#a8815c'];
     for (let x = x0, i = 0; x < x1; x += CW, i++) {
       const dir = i % 2 ? 1 : -1;
       for (let y = y0 - CW, j = 0; y < y1 + CW; y += BS, j++) {
         const a = dir > 0 ? 0 : -CW, b = dir > 0 ? -CW : 0;
         g.fillStyle = pickC(woods, i, j);
         g.beginPath(); g.moveTo(x, y + a); g.lineTo(x + CW, y + b); g.lineTo(x + CW, y + b + BS); g.lineTo(x, y + a + BS); g.closePath(); g.fill();
-        g.strokeStyle = 'rgba(55, 32, 18, .3)'; g.lineWidth = 0.5; g.stroke();
+        g.strokeStyle = 'rgba(55, 32, 18, .13)'; g.lineWidth = 0.4; g.stroke();
       }
     }
   }
