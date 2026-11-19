@@ -49,13 +49,14 @@ function vWall(x, y0, y1, gaps = gapsFor('v', x), h = H) {
   for (const [g0, g1] of gaps) { if (g0 > y) walls.push({ x: x - T / 2, y, w: T, d: g0 - y, h }); y = Math.max(y, g1); }
   if (y1 > y) walls.push({ x: x - T / 2, y, w: T, d: y1 - y, h });
 }
-hWall(T / 2, 0, W, []);                                  // north
-vWall(T / 2, 0, D, []);                                  // west
-vWall(W - T / 2, 0, D, []);                              // east
+// Each wall stops where it meets another, so walls join cleanly instead of overlapping.
+hWall(T / 2, 0, W, []);                                  // north (full width, covers the back corners)
 hWall(D - T / 2, 0, W, [[ENTRANCE.x0, ENTRANCE.x1]], 12); // south: low, like a dollhouse cut-away
-hWall(ROW, 0, W);                                        // middle
-for (const x of [400, 1000]) vWall(x, 0, ROW);
-for (const x of [420, 880, 1200]) vWall(x, ROW, D);
+vWall(T / 2, T, D - T, []);                              // west, between north and south walls
+vWall(W - T / 2, T, D - T, []);                          // east
+hWall(ROW, T, W - T);                                    // middle, between west and east walls
+for (const x of [400, 1000]) vWall(x, T, ROW - T / 2);
+for (const x of [420, 880, 1200]) vWall(x, ROW + T / 2, D - T);
 
 const furniture = [];
 for (const r of ROOMS) {
