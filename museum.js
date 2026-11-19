@@ -90,12 +90,54 @@ function fitCamera() {
   const s = Math.min((cw - padX * 2) / W, (ch - padTop - padBottom) / (bottom - top));
   return { s, ox: (cw - W * s) / 2, oy: padTop + ((ch - padTop - padBottom) - (bottom - top) * s) / 2 - top * s };
 }
+// ===== Phones: tap a room to step inside; drag a finger through the crowd =====
+const PHONE = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
+let roomZoom = null;                          // the room the phone view is zoomed into, if any
+const ROOM_ORDER = ['oldmasters', 'impressionism', 'okeeffe', 'american', 'japanese', 'lobby', 'modern'];
+function roomCam(r) {
+  const x0 = r.x0, x1 = r.x1, y0 = sy(r.y0, H + 6), y1 = sy(r.y1) + 4;
+  const padTop = 76, padBottom = 76, padX = 10;
+  const s = Math.min((cw - padX * 2) / (x1 - x0), (ch - padTop - padBottom) / (y1 - y0));
+  return { s, ox: cw / 2 - ((x0 + x1) / 2) * s, oy: padTop + ((ch - padTop - padBottom) - (y1 - y0) * s) / 2 - y0 * s };
+}
+const viewCam = () => (roomZoom ? roomCam(roomZoom) : baseCam);
+function enterRoom(r) {
+  roomZoom = r;
+  if (reduceMotion) Object.assign(cam, roomCam(r)); else animateCamera(roomCam(r), 700);
+  updatePhoneUI();
+}
+function leaveRoom() {
+  roomZoom = null;
+  if (reduceMotion) Object.assign(cam, baseCam); else animateCamera(baseCam, 700);
+  updatePhoneUI();
+}
+function stepRoom(dir) {
+  const i = ROOM_ORDER.indexOf(roomZoom.id);
+  enterRoom(roomById[ROOM_ORDER[(i + dir + ROOM_ORDER.length) % ROOM_ORDER.length]]);
+}
+function updatePhoneUI() {
+  if (!PHONE) return;
+  const nav = document.getElementById('phone-nav');
+  nav.hidden = !roomZoom;
+  document.body.classList.toggle('in-room', !!roomZoom);
+  if (roomZoom) document.getElementById('pn-room').textContent = roomZoom.name || galleries.find((g) => g.id === roomZoom.id)?.name || '';
+  document.getElementById('hint').textContent = roomZoom
+    ? 'Tap a painting to look closer · Drag through the crowd'
+    : 'Tap a room to step inside · Drag through the crowd';
+}
+// Which room a tap on the overview means (taps on a wall's paintings count as the room in front of it).
+function roomAtTap(mx, my) {
+  const { px, py } = toProj(mx, my);
+  let y = py / K;
+  for (const faceY of [T, ROW + T / 2]) if (y < faceY && y > faceY - H / K - 4) y = faceY + 2;
+  return roomAt(Math.max(1, Math.min(W - 1, px)), Math.max(1, Math.min(D - 1, y)));
+}
 function resize() {
   dpr = Math.min(window.devicePixelRatio || 1, 2);
   cw = window.innerWidth; ch = window.innerHeight;
   canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
   baseCam = fitCamera();
-  if (!zoom.active) Object.assign(cam, baseCam);
+  if (!zoom.active) Object.assign(cam, viewCam());
   else Object.assign(cam, zoomTarget(zoom.painting));
 }
 const toProj = (mx, my) => ({ px: (mx - cam.ox) / cam.s, py: (my - cam.oy) / cam.s });
@@ -1532,7 +1574,7 @@ function closePainting() {
   viewer.classList.remove('show');
   setTimeout(() => { viewer.hidden = true; }, reduceMotion ? 0 : 300);
   const back = () => { zoom.active = false; zoom.painting = null; };
-  if (reduceMotion) { Object.assign(cam, baseCam); back(); } else animateCamera(baseCam, 900, back);
+  if (reduceMotion) { Object.assign(cam, viewCam()); back(); } else animateCamera(viewCam(), 900, back);   // back to the room (phone) or the map
   if (zoom.opener) { zoom.opener.focus(); zoom.opener = null; }
 }
 
@@ -1648,12 +1690,21 @@ function onMove(e) {
   } else hideTooltip();
   if (!hintTimer) hintTimer = setTimeout(() => { $('hint').style.opacity = '0.55'; }, 6000);
 }
-canvas.addEventListener('pointermove', onMove);
-canvas.addEventListener('pointerdown', onMove);
+canvas.addEventListener('pointermove', (e) => {
+  if (dragStart && Math.hypot(e.clientX - dragStart.x, e.clientY - dragStart.y) > 8) dragged = true;
+  onMove(e);
+});
+let dragStart = null, dragged = false;      // a finger drag scatters people; it shouldn't also count as a tap
+canvas.addEventListener('pointerdown', (e) => { dragStart = { x: e.clientX, y: e.clientY }; dragged = false; onMove(e); });
 canvas.addEventListener('pointerleave', () => { mouse = null; hovered = null; statueHovered = false; hideTooltip(); });
 canvas.addEventListener('pointerup', (e) => { if (e.pointerType === 'touch') setTimeout(() => { mouse = null; }, 400); });
 canvas.addEventListener('click', (e) => {
-  if (zoom.active) return;
+  if (zoom.active || dragged) return;
+  if (PHONE && !roomZoom) {                  // on the phone overview, a tap steps into that room
+    const r = roomAtTap(e.clientX, e.clientY);
+    if (r) enterRoom(r);
+    return;
+  }
   const p = paintingAt(e.clientX, e.clientY);
   if (p) openPainting(p);
   else if (statueAt(e.clientX, e.clientY)) { kickStatue(); statueHovered = false; hideTooltip(); }
@@ -1695,6 +1746,12 @@ async function start() {
   placeDecor();
   buildGuide();
   spawnPeople(cw < 700 ? 45 : 75);
+  if (PHONE) {
+    document.getElementById('pn-back').addEventListener('click', leaveRoom);
+    document.getElementById('pn-prev').addEventListener('click', () => stepRoom(-1));
+    document.getElementById('pn-next').addEventListener('click', () => stepRoom(1));
+    updatePhoneUI();
+  }
   spawnGuards();
   requestAnimationFrame(frame);
 }
