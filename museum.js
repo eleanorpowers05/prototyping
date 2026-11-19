@@ -668,7 +668,7 @@ function kickStatue() {
 // Caught! The statue shatters into marble chunks, which fade away before it reappears on its pedestal.
 const shards = [];
 function arrestStatue(guard) {
-  guard.say = { text: 'Gotcha!', t: 2.2 };
+  guard.say = { text: 'Freeze!', t: 2.2 };
   guard.chasing = false; guard.path = []; guard.wait = 2;
   const sprite = statueSprite('run', Math.floor(statue.phase / 1.6) % 4, false);
   const px = sprite.getContext('2d').getImageData(0, 0, SPR_W, SPR_H).data;
@@ -1134,45 +1134,134 @@ function drawWoodBench(b) {
   ctx.strokeStyle = 'rgba(70, 45, 25, .45)'; ctx.lineWidth = 0.5;
   ctx.strokeRect(b.x, sy(b.y, seatZ), b.w, yFront + thick - sy(b.y, seatZ));
 }
-// Marble busts on white plinths, placed against the wall in gaps between paintings.
-function placeBusts() {
-  const room = roomById.oldmasters, faceY = T;
-  const onWall = paintings.filter((p) => p.room === room).sort((a, b) => a.x0 - b.x0);
-  const edges = [room.x0 + 24, ...onWall.flatMap((p) => [p.x0, p.x1]), room.x1 - 24];
-  const gaps = [];
-  for (let i = 0; i < edges.length; i += 2) gaps.push({ a: edges[i], b: edges[i + 1] });
-  gaps.sort((g1, g2) => (g2.b - g2.a) - (g1.b - g1.a));
-  for (const gp of gaps.slice(0, 2)) {
-    if (gp.b - gp.a < 20) continue;
-    const plinth = { kind: 'plinth', x: (gp.a + gp.b) / 2 - 6, y: faceY + 8, w: 12, d: 10, h: 20 };
-    furniture.push(plinth); solids.push(plinth);
+// Sculptures and objects on plinths, placed against each room's painting wall in the free spaces
+// between paintings (never in front of a doorway).
+const DECOR = {
+  oldmasters: [{ piece: 'bust' }, { piece: 'bust' }],
+  modern: [{ piece: 'shapes', at: 'door-bench' }],   // centerpiece between the doorway and the bench
+};
+function placeDecor() {
+  for (const [id, pieces] of Object.entries(DECOR)) {
+    const room = roomById[id], line = room.y0 === 0 ? -1 : ROW, faceY = room.y0 === 0 ? T : ROW + T / 2;
+    // free stretches of wall: the room's wall minus doorways and paintings
+    let free = [[room.x0 + 22, room.x1 - 22]];
+    const cut = (a, b) => { free = free.flatMap(([p, q]) => (b <= p || a >= q ? [[p, q]] : [[p, a], [b, q]].filter(([u, v]) => v - u > 0))); };
+    for (const [g0, g1] of gapsFor('h', line)) cut(g0 - 14, g1 + 14);
+    for (const pt of paintings.filter((x) => x.room === room)) cut(pt.x0 - 5, pt.x1 + 5);
+    // pieces with a set spot: 'door-bench' (centerpiece between the top doorway and the bench) or
+    // 'bottom-center' (against the low front wall)
+    for (const pc of pieces.filter((x) => x.at)) {
+      const wood = pc.stand === 'wood', w = wood ? 14 : 12, d = 10;
+      let cx = (room.x0 + room.x1) / 2, y;
+      if (pc.at === 'bottom-center') y = room.y1 - T - 6 - d;
+      else {
+        const door = DOORS.find((dr) => dr.o === 'h' && dr.y === ROW && dr.x > room.x0 && dr.x < room.x1);
+        const bench = furniture.find((f) => f.kind === 'bench' && roomAt(f.x, f.y) === room);
+        if (door) cx = door.x;
+        y = ((room.y0 + T / 2) + (bench ? bench.y : room.y1)) / 2 - d / 2;
+      }
+      const plinth = { kind: 'plinth', piece: pc.piece, stand: pc.stand || 'white', x: cx - w / 2, y, w, d, h: wood ? 12 : 20 };
+      furniture.push(plinth); solids.push(plinth);
+    }
+    // pieces marked side: 'east'/'west' stand against that side wall, clear of doorways
+    for (const pc of pieces.filter((x) => x.side)) {
+      const wood = pc.stand === 'wood', w = wood ? 14 : 12, d = 10;
+      // outer walls sit fully inside the room's edge; inner walls straddle it
+      const inset = (edge) => (edge === 0 || edge === W ? T : T / 2) + 4;
+      const x = pc.side === 'east' ? room.x1 - inset(room.x1) - w : room.x0 + inset(room.x0);
+      const wallX = pc.side === 'east' ? room.x1 : room.x0;
+      const doorYs = DOORS.filter((dr) => dr.o === 'v' && dr.x === wallX).map((dr) => dr.y);
+      let y = room.y0 + (room.y1 - room.y0) * 0.32;
+      const blocked = (yy) => doorYs.some((dy) => Math.abs(dy - yy) < DOOR_W / 2 + 22) ||
+        furniture.some((f) => x < f.x + f.w + 8 && x + w > f.x - 8 && yy < f.y + f.d + 8 && yy + d > f.y - 8) ||
+        plants.some((pl) => Math.hypot(pl.x - (x + w / 2), pl.y - (yy + d / 2)) < pl.r + 14);
+      while (blocked(y) && y < room.y1 - 40) y += 12;
+      const plinth = { kind: 'plinth', piece: pc.piece, stand: pc.stand || 'white', x, y, w, d, h: wood ? 12 : 20 };
+      furniture.push(plinth); solids.push(plinth);
+    }
+    // the rest go against the painting wall: wider pieces take the biggest spaces; slim ones can use narrower gaps
+    const order = pieces.filter((x) => !x.side && !x.at).map((pc, i) => ({ ...pc, i })).sort((u, v) => !!u.narrow - !!v.narrow);
+    const used = [];
+    for (const pc of order) {
+      const need = pc.narrow ? 15 : 20;
+      const spot = free.filter(([a, b]) => b - a >= need && !used.includes(a)).sort((u, v) => (v[1] - v[0]) - (u[1] - u[0]))[0];
+      if (spot) { used.push(spot[0]); pc.spot = spot; }
+    }
+    order.filter((pc) => pc.spot).forEach(({ spot: [a, b], piece, stand = 'white', narrow }) => {
+      const wood = stand === 'wood', w = narrow ? 11 : wood ? 14 : 12;
+      const plinth = { kind: 'plinth', piece, stand, x: (a + b) / 2 - w / 2, y: faceY + 8, w, d: 10, h: wood ? 12 : 20 };
+      furniture.push(plinth); solids.push(plinth);
+    });
   }
 }
-let bustSprite = null;
-function makeBustSprite() {
-  const c = document.createElement('canvas'); c.width = 11; c.height = 12;
+// Little pixel-art sprites: drawn with simple shapes on a tiny grid, then given hard edges and an outline.
+function makeSprite(w, h, paint, edge = [150, 140, 124]) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
   const g = c.getContext('2d');
-  g.fillStyle = '#f5f2ec';
-  g.beginPath(); g.roundRect(1, 7.5, 9, 4.5, 2); g.fill();          // shoulders
-  g.fillRect(4, 5.5, 3, 2.6);                                       // neck
-  g.beginPath(); g.arc(5.5, 3.6, 3.1, 0, Math.PI * 2); g.fill();    // head
-  g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(150, 140, 125, .3)'; g.fillRect(6.2, 0, 6, 12);
-  g.globalCompositeOperation = 'source-over';
-  const img = g.getImageData(0, 0, 11, 12), d = img.data, solid = new Uint8Array(132);
-  for (let i = 0; i < 132; i++) { solid[i] = d[i * 4 + 3] >= 110 ? 1 : 0; d[i * 4 + 3] = solid[i] ? 255 : 0; }
-  for (let y = 0; y < 12; y++) for (let x = 0; x < 11; x++) {
-    const i = y * 11 + x; if (solid[i]) continue;
-    if ((x > 0 && solid[i - 1]) || (x < 10 && solid[i + 1]) || (y > 0 && solid[i - 11]) || (y < 11 && solid[i + 11])) { d[i * 4] = 150; d[i * 4 + 1] = 140; d[i * 4 + 2] = 124; d[i * 4 + 3] = 235; }
+  paint(g);
+  const img = g.getImageData(0, 0, w, h), d = img.data, solid = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) { solid[i] = d[i * 4 + 3] >= 110 ? 1 : 0; d[i * 4 + 3] = solid[i] ? 255 : 0; }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x; if (solid[i]) continue;
+    if ((x > 0 && solid[i - 1]) || (x < w - 1 && solid[i + 1]) || (y > 0 && solid[i - w]) || (y < h - 1 && solid[i + w])) {
+      d[i * 4] = edge[0]; d[i * 4 + 1] = edge[1]; d[i * 4 + 2] = edge[2]; d[i * 4 + 3] = 235;
+    }
   }
   g.putImageData(img, 0, 0);
   return c;
 }
+const shadeRight = (g, from, w, h, a = 0.3) => {
+  g.globalCompositeOperation = 'source-atop'; g.fillStyle = `rgba(120, 105, 90, ${a})`; g.fillRect(from, 0, w, h);
+  g.globalCompositeOperation = 'source-over';
+};
+const SPRITES = {
+  bust: () => makeSprite(11, 12, (g) => {                 // marble bust
+    g.fillStyle = '#f5f2ec';
+    g.beginPath(); g.roundRect(1, 7.5, 9, 4.5, 2); g.fill();
+    g.fillRect(4, 5.5, 3, 2.6);
+    g.beginPath(); g.arc(5.5, 3.6, 3.1, 0, Math.PI * 2); g.fill();
+    shadeRight(g, 6.2, 6, 12);
+  }),
+  bronze: () => makeSprite(9, 17, (g) => {                // a slender, leaning golden abstract form
+    g.fillStyle = '#c9a24a';
+    g.beginPath(); g.moveTo(4, 16.5); g.bezierCurveTo(1, 12, 2.5, 5, 6, 0.6); g.bezierCurveTo(7.5, 4, 7.5, 11, 5.6, 16.5); g.closePath(); g.fill();
+    g.fillStyle = '#7b6440'; g.fillRect(3, 15.5, 4, 1.5);                       // small base
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(255, 236, 170, .55)'; g.fillRect(2.4, 3, 1.6, 10);
+    g.globalCompositeOperation = 'source-over';
+    shadeRight(g, 5.4, 4, 17, 0.25);
+  }, [110, 85, 45]),
+  shapes: () => makeSprite(12, 15, (g) => {               // colorful shapes balanced on a black stand
+    g.fillStyle = '#2b2b2b'; g.fillRect(5.5, 7, 1.2, 8); g.fillRect(3.5, 14, 5, 1);
+    g.fillStyle = '#d6452b'; g.beginPath(); g.arc(3.8, 4.2, 3.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#2f5aa8'; g.fillRect(7.2, 5.2, 3.6, 3.6);
+    g.fillStyle = '#e9b93a'; g.beginPath(); g.moveTo(6.2, 0.4); g.lineTo(10.6, 0.4); g.lineTo(8.4, 4.2); g.closePath(); g.fill();
+  }, [60, 55, 50]),
+  jar: () => makeSprite(10, 12, (g) => {                  // blue-and-white ginger jar with a lid
+    g.fillStyle = '#f2f0ea'; g.beginPath(); g.ellipse(5, 7.2, 4.4, 4.4, 0, 0, Math.PI * 2); g.fill();
+    g.fillRect(2.6, 10.4, 4.8, 1.4);
+    g.fillStyle = '#2e5c9a'; g.beginPath(); g.roundRect(2.2, 1.4, 5.6, 2.6, 1.2); g.fill();      // lid
+    g.fillRect(4.3, 0.2, 1.4, 1.4);                                                                 // knob
+    g.fillRect(1, 6.4, 8, 1.4);                                                                     // painted band
+    g.fillStyle = '#4b7cc0'; g.fillRect(3, 8.6, 1.2, 1.2); g.fillRect(6, 8.6, 1.2, 1.2); g.fillRect(4.5, 4.8, 1.2, 1.2);
+    shadeRight(g, 6.4, 4, 12, 0.22);
+  }, [90, 100, 120]),
+  vase: () => makeSprite(8, 15, (g) => {                  // tall celadon bottle vase
+    g.fillStyle = '#9fc5aa';
+    g.beginPath(); g.ellipse(4, 10.5, 3.6, 3.8, 0, 0, Math.PI * 2); g.fill();
+    g.fillRect(3, 2, 2, 7); g.fillRect(2.4, 0.6, 3.2, 1.6);                    // neck and lip
+    g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(235, 250, 238, .5)'; g.fillRect(1.3, 8, 1.2, 4);
+    g.globalCompositeOperation = 'source-over';
+    shadeRight(g, 4.8, 4, 15, 0.25);
+  }, [80, 110, 90]),
+};
+const spriteImages = {};
 function drawPlinth(b) {
-  drawBox(b, '#fbfaf7', '#ebe8e1', 'rgba(110, 100, 85, .35)');
-  bustSprite = bustSprite || makeBustSprite();
-  const P = 1.45, w = 11 * P, h = 12 * P;
+  if (b.stand === 'wood') drawBox(b, '#5c4332', '#46321f', 'rgba(30, 18, 10, .45)');      // low dark-wood stand
+  else drawBox(b, '#fbfaf7', '#ebe8e1', 'rgba(110, 100, 85, .35)');                      // white plinth
+  const img = spriteImages[b.piece] || (spriteImages[b.piece] = SPRITES[b.piece || 'bust']());
+  const P = 1.45, w = img.width * P, h = img.height * P;
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(bustSprite, b.x + b.w / 2 - w / 2, sy(b.y + b.d * 0.55, b.h) - h + 1, w, h);
+  ctx.drawImage(img, b.x + b.w / 2 - w / 2, sy(b.y + b.d * 0.55, b.h) - h + 1, w, h);
   ctx.imageSmoothingEnabled = true;
 }
 function drawFurniture(b) {
@@ -1603,7 +1692,7 @@ async function start() {
     $('hint').textContent = "Couldn't load the artworks. Try refreshing.";
   }
   hangPaintings();
-  placeBusts();
+  placeDecor();
   buildGuide();
   spawnPeople(cw < 700 ? 45 : 75);
   spawnGuards();
