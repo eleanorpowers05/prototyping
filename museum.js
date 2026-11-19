@@ -93,7 +93,8 @@ function fitCamera() {
 // ===== Phones: tap a room to step inside; drag a finger through the crowd =====
 const PHONE = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
 let roomZoom = null;                          // the room the phone view is zoomed into, if any
-const ROOM_ORDER = ['oldmasters', 'impressionism', 'okeeffe', 'american', 'japanese', 'lobby', 'modern'];
+// The phone tour: the map, then each room in an order that follows the doorways, then back to the map.
+const TOUR = ['map', 'lobby', 'modern', 'oldmasters', 'impressionism', 'okeeffe', 'japanese', 'american'];
 function roomCam(r) {
   const x0 = r.x0, x1 = r.x1, y0 = sy(r.y0, H + 6), y1 = sy(r.y1) + 4;
   const padTop = 76, padBottom = 76, padX = 10;
@@ -112,18 +113,20 @@ function leaveRoom() {
   updatePhoneUI();
 }
 function stepRoom(dir) {
-  const i = ROOM_ORDER.indexOf(roomZoom.id);
-  enterRoom(roomById[ROOM_ORDER[(i + dir + ROOM_ORDER.length) % ROOM_ORDER.length]]);
+  const i = TOUR.indexOf(roomZoom ? roomZoom.id : 'map');
+  const next = TOUR[(i + dir + TOUR.length) % TOUR.length];
+  if (next === 'map') leaveRoom(); else enterRoom(roomById[next]);
 }
 function updatePhoneUI() {
   if (!PHONE) return;
-  const nav = document.getElementById('phone-nav');
-  nav.hidden = !roomZoom;
-  document.body.classList.toggle('in-room', !!roomZoom);
-  if (roomZoom) document.getElementById('pn-room').textContent = roomZoom.name || galleries.find((g) => g.id === roomZoom.id)?.name || '';
+  document.getElementById('phone-nav').hidden = false;          // the tour bar is always there on phones
+  document.body.classList.add('phone');
+  document.getElementById('pn-room').textContent = roomZoom
+    ? roomZoom.name || galleries.find((g) => g.id === roomZoom.id)?.name || ''
+    : 'Map';
   document.getElementById('hint').textContent = roomZoom
     ? 'Tap a painting to look closer · Drag through the crowd'
-    : 'Tap a room to step inside · Drag through the crowd';
+    : 'Use the arrows to walk through, or tap a room';
 }
 // Which room a tap on the overview means (taps on a wall's paintings count as the room in front of it).
 function roomAtTap(mx, my) {
@@ -1747,7 +1750,6 @@ async function start() {
   buildGuide();
   spawnPeople(cw < 700 ? 45 : 75);
   if (PHONE) {
-    document.getElementById('pn-back').addEventListener('click', leaveRoom);
     document.getElementById('pn-prev').addEventListener('click', () => stepRoom(-1));
     document.getElementById('pn-next').addEventListener('click', () => stepRoom(1));
     updatePhoneUI();

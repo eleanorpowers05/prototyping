@@ -98,15 +98,16 @@ a { color: var(--accent); }
 
 /* Phone room navigation */
 .phone-nav {
-  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 6;
+  position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); z-index: 6;
   display: flex; align-items: center; gap: 4px; padding: 5px; border-radius: 999px; white-space: nowrap;
   background: var(--panel); border: 1px solid var(--border); box-shadow: 0 6px 24px rgba(0, 0, 0, .12);
   max-width: calc(100vw - 32px);
 }
 .phone-nav button { border: 0; background: #fffdf9; border-radius: 999px; padding: 7px 11px; font-size: 14px; min-width: 36px; white-space: nowrap; }
-.phone-nav #pn-back { font-weight: 600; }
-.pn-room { font: 11px/1.2 Silkscreen, system-ui, sans-serif; color: var(--ink); padding: 0 4px; white-space: nowrap; }
-body.in-room .credit { display: none; }   /* make room for the phone's room bar */
+.phone-nav #pn-prev, .phone-nav #pn-next { font-size: 20px; line-height: 1; padding: 6px 14px; }
+.pn-room { font: 12px/1.2 Silkscreen, system-ui, sans-serif; color: var(--ink); padding: 0 8px; white-space: nowrap; min-width: 9.5em; text-align: center; }
+body.phone .credit { bottom: 8px; font-size: 11px; }
+body.phone .hud { top: 0; left: 0; right: 0; padding: 16px 110px 26px 20px; background: linear-gradient(var(--bg) 72%, rgba(233, 226, 214, 0)); z-index: 3; }
 
 @media (max-width: 800px) {
   .hud h1 { font-size: 22px; }
